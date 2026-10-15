@@ -158,6 +158,17 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     </div>
     <p class="hint">Tap a name to rename it. Hiding a client removes them from the Log screen but keeps their notes.</p>
     <div class="notes" id="clientList"></div>
+    <div class="pad" id="drivePanel">
+      <h2>Send notes to Google Drive</h2>
+      <p class="hint" id="driveStatus">Off. Once connected, every note you save, edit or delete is copied to a Google Sheet in your Drive automatically. If you have no signal, notes wait and send later.</p>
+      <input type="text" id="driveUrl" placeholder="Paste your sync link (https://script.google.com/…)" autocomplete="off" inputmode="url">
+      <input type="text" id="driveSecret" placeholder="Your secret word" autocomplete="off">
+      <div class="row">
+        <button class="btn primary" id="driveConnect">Connect</button>
+        <button class="btn small" id="driveSendAll" hidden>Send all notes again</button>
+        <button class="btn small" id="driveOff" hidden>Turn off</button>
+      </div>
+    </div>
   </section>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -427,22 +438,86 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       const cMap=new Map(clients.map(c=>[c.id,c])); (data.clients||[]).forEach(c=>{ if(!cMap.has(c.id)) cMap.set(c.id,c); });
       const nMap=new Map(notes.map(n=>[n.id,n])); let added=0; data.notes.forEach(n=>{ if(!nMap.has(n.id)){ nMap.set(n.id,n); added++; } });
       clients=[...cMap.values()]; notes=[...nMap.values()].sort((a,b)=>b.createdAt-a.createdAt);
-      ls.set('local:clients',clients); ls.set('local:notes',notes); render(); toast('Restored '+added+' notes');
+      ls.set('local:clients',clients); ls.set('local:notes',notes); if(drive){ notes.forEach(n=>queueUp(n.id)); flushDrive(); } render(); toast('Restored '+added+' notes');
     }catch{ toast('That file is not a Case Notes backup'); }
   });
 
   /* ---------- storage (on this device) ---------- */
   clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;
+
+  /* ---------- Google Drive sync ---------- */
+  // Notes are queued on the phone and sent to Mark's own Google Apps Script, which writes them into a Sheet.
+  let drive=ls.get('drive',null), flushing=false;
+  const q=()=>ls.get('driveQ',{up:[],del:[]});
+  function queueUp(id){ const x=q(); if(!x.up.includes(id)) x.up.push(id); x.del=x.del.filter(d=>d!==id); ls.set('driveQ',x); }
+  function queueDel(id){ const x=q(); x.up=x.up.filter(d=>d!==id); if(!x.del.includes(id)) x.del.push(id); ls.set('driveQ',x); }
+  function driveStatus(msg){
+    $('driveStatus').textContent = msg;
+    $('driveSendAll').hidden = $('driveOff').hidden = !drive;
+    $('driveConnect').textContent = drive ? 'Update' : 'Connect';
+  }
+  function statusFromQueue(){
+    if(!drive) return;
+    const x=q(), waiting=x.up.length+x.del.length, last=ls.get('driveLast',0);
+    driveStatus(waiting ? `Connected. ${waiting} ${waiting===1?'change is':'changes are'} waiting to send.`
+      : `Connected. Everything is in your "Shift Case Notes" sheet${last?`, last sent ${fmtTime.format(last)} ${fmtDate.format(last)}`:''}.`);
+  }
+  async function callDrive(cfg, payload){
+    const res=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({secret:cfg.secret,...payload})});
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'failed');
+    return data;
+  }
+  async function flushDrive(){
+    if(!drive || flushing || navigator.onLine===false) return;
+    const x=q(); if(!x.up.length && !x.del.length){ statusFromQueue(); return; }
+    flushing=true;
+    try{
+      const byId=new Map(notes.map(n=>[n.id,n]));
+      const ups=x.up.filter(id=>byId.has(id)).slice(0,40), dels=x.del.slice(0,40);
+      const payload={action:'sync',deleted:dels,notes:ups.map(id=>{ const n=byId.get(id); return {id:n.id,date:fmtDate.format(n.createdAt),time:fmtTime.format(n.createdAt),client:nameOf(n.clientId)||n.clientName,text:n.text,edited:n.editedAt?fmtTime.format(n.editedAt)+' '+fmtDate.format(n.editedAt):''}; })};
+      const data=await callDrive(drive,payload);
+      const done=new Set(data.done||[]); const y=q();
+      y.up=y.up.filter(id=>byId.has(id) && !done.has(id)); y.del=y.del.filter(id=>!done.has(id)); ls.set('driveQ',y);
+      ls.set('driveLast',Date.now()); flushing=false; statusFromQueue();
+      if(y.up.length||y.del.length) setTimeout(flushDrive,500);
+    }catch(e){
+      flushing=false;
+      if(e.message==='wrong_secret') driveStatus('Google Drive turned down the secret word. Check it matches the one in your script.');
+      else statusFromQueue();
+    }
+  }
+  $('driveConnect').addEventListener('click',async()=>{
+    const url=$('driveUrl').value.trim(), secret=$('driveSecret').value.trim();
+    if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){ driveStatus('That link doesn’t look right. It should start with https://script.google.com/'); return; }
+    if(!secret){ driveStatus('Type the secret word you put in the script.'); return; }
+    $('driveConnect').disabled=true; driveStatus('Checking the connection…');
+    try{
+      await callDrive({url,secret},{action:'ping'});
+      const first=!drive; drive={url,secret}; ls.set('drive',drive);
+      if(first) notes.forEach(n=>queueUp(n.id));
+      toast('Connected to Google Drive'); statusFromQueue(); flushDrive();
+    }catch(e){
+      driveStatus(e.message==='wrong_secret' ? 'The secret word doesn’t match the one in your script.' : 'Could not reach your script. Check the link, and that it was deployed with access set to Anyone.');
+    }finally{ $('driveConnect').disabled=false; }
+  });
+  $('driveSendAll').addEventListener('click',()=>{ notes.forEach(n=>queueUp(n.id)); statusFromQueue(); flushDrive(); });
+  $('driveOff').addEventListener('click',()=>{ drive=null; ls.set('drive',null); ls.set('driveQ',{up:[],del:[]}); $('driveUrl').value=''; $('driveSecret').value=''; driveStatus('Off. Notes already in your Google Sheet stay there.'); });
+  if(drive){ $('driveUrl').value=drive.url; $('driveSecret').value=drive.secret; statusFromQueue(); } else driveStatus($('driveStatus').textContent);
+  window.addEventListener('online',flushDrive);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') flushDrive(); });
+  setInterval(flushDrive,5*60*1000);
   store={
     async saveClients(c){ ls.set('local:clients',c); },
-    async putNote(n){ const all=ls.get('local:notes',[]).filter(x=>x.id!==n.id); all.push(n); ls.set('local:notes',all); if(JSON.stringify(ls.get('local:notes',[])).indexOf(n.id)<0) throw {code:'quota_exceeded'}; },
-    async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); },
+    async putNote(n){ const all=ls.get('local:notes',[]).filter(x=>x.id!==n.id); all.push(n); ls.set('local:notes',all); if(JSON.stringify(ls.get('local:notes',[])).indexOf(n.id)<0) throw {code:'quota_exceeded'}; if(drive){ queueUp(n.id); setTimeout(flushDrive,50); } },
+    async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); if(drive){ queueDel(id); setTimeout(flushDrive,50); } },
   };
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
   const lb=ls.get('lastBackup',0);
   if(notes.length>=5 && Date.now()-lb>14*864e5){ const b=$('storeBanner'); b.hidden=false; b.textContent=lb?'It has been over two weeks since your last backup. Open History and tap Back up everything.':'Your notes are only on this phone. Open History and tap Back up everything to keep a copy safe.'; }
   if(selected) $('noteText').value=ls.get('draft:'+selected,'');
   showTab(ls.get('tab','log'));
+  flushDrive();
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
