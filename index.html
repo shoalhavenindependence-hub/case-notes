@@ -350,22 +350,50 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     clients=clients.map(c=>c.id===id?{...c,hidden:!c.hidden}:c); store.saveClients(clients); render();
   });
 
-  /* ---------- optional: in-page dictation (only if the browser allows it) ---------- */
+  /* ---------- in-page dictation ---------- */
+  // Android Chrome stops listening after each pause, so we restart until the user taps Stop.
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SR) {
-    $('recBtn').hidden=false; let rec=null, base='';
-    $('recBtn').addEventListener('click',()=>{
+    const btn=$('recBtn'); btn.hidden=false;
+    let rec=null, listening=false, base='', fails=0;
+    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
+    const stopAll=msg=>{ listening=false; if(rec){ try{rec.abort()}catch{} rec=null; } setBtn(false); if(msg) toast(msg); };
+    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
+    function startOnce(){
+      rec=new SR(); rec.lang='en-AU'; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
+      let finalPart='';
+      rec.onresult=ev=>{
+        fails=0; let interim=''; finalPart='';
+        for(let k=0;k<ev.results.length;k++){ const r=ev.results[k]; if(r.isFinal) finalPart+=r[0].transcript; else interim+=r[0].transcript; }
+        $('noteText').value=joinText(base, finalPart+interim);
+        $('noteText').dispatchEvent(new Event('input'));
+      };
+      rec.onerror=ev=>{
+        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. Long-press the Case Notes icon, tap App info, then Permissions, and allow Microphone.');
+        else if(ev.error==='network') stopAll('Dictation needs an internet connection. Use the keyboard microphone instead.');
+        else if(ev.error==='audio-capture') stopAll('No microphone found.');
+        else if(ev.error!=='no-speech' && ev.error!=='aborted') fails++;
+      };
+      rec.onend=()=>{
+        base=joinText(base, finalPart); $('noteText').value=base; $('noteText').dispatchEvent(new Event('input'));
+        rec=null;
+        if(listening && fails<3) { try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } }
+        else if(listening) stopAll('Dictation stopped. Tap Dictate to carry on.');
+      };
+      rec.start();
+    }
+    btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
-      if(rec){ rec.stop(); return; }
-      rec=new SR(); rec.lang='en-AU'; rec.continuous=true; rec.interimResults=true;
-      base=$('noteText').value ? $('noteText').value.replace(/\s*$/,' ') : '';
-      rec.onresult=ev=>{ let fin='',tmp=''; for(const r of ev.results){ (r.isFinal?(fin+=r[0].transcript):(tmp+=r[0].transcript)); } $('noteText').value=base+fin+tmp; $('noteText').dispatchEvent(new Event('input')); };
-      rec.onerror=ev=>{ if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ $('recBtn').hidden=true; toast('Use the microphone on your keyboard instead'); } };
-      rec.onend=()=>{ rec=null; $('recBtn').classList.remove('on'); $('recBtn').textContent='● Dictate'; };
-      try{ rec.start(); $('recBtn').classList.add('on'); $('recBtn').textContent='■ Stop'; }catch{ rec=null; $('recBtn').hidden=true; }
+      if(listening){ stopAll(); return; }
+      try{
+        if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+          const s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(t=>t.stop());
+        }
+      }catch(e){ stopAll('Microphone is blocked. Long-press the Case Notes icon, tap App info, then Permissions, and allow Microphone.'); return; }
+      base=$('noteText').value; fails=0; listening=true; setBtn(true); toast('Listening… speak now');
+      try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
     });
   }
-
 
   /* ---------- files ---------- */
   async function saveFile(name, text, type){
