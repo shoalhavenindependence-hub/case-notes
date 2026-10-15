@@ -9,7 +9,7 @@
  * Deploy > New deployment > Web app (Execute as: Me, Who has access: Anyone).
  * Put the same secret word into the app.
  */
-const SECRET = 'change-me';
+const SECRET = 'pinkus';
 
 const SHEET_NAME = 'Notes';          // one row per note (used to keep things in step; hidden)
 const BY_CLIENT_NAME = 'By client';  // one column per client, notes listed downwards
