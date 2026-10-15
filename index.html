@@ -355,7 +355,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SR) {
     const btn=$('recBtn'); btn.hidden=false;
-    let rec=null, listening=false, base='', fails=0;
+    let rec=null, listening=false, base='', fails=0, restarts=0;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
     const stopAll=msg=>{ listening=false; if(rec){ try{rec.abort()}catch{} rec=null; } setBtn(false); if(msg) toast(msg); };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
@@ -369,15 +369,17 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
         $('noteText').dispatchEvent(new Event('input'));
       };
       rec.onerror=ev=>{
-        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone's app settings.');
+        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.');
         else if(ev.error==='network') stopAll('Dictation needs an internet connection. Use the keyboard microphone instead.');
         else if(ev.error==='audio-capture') stopAll('No microphone found.');
-        else if(ev.error!=='no-speech' && ev.error!=='aborted') fails++;
+        else fails++;
       };
       rec.onend=()=>{
         base=joinText(base, finalPart); $('noteText').value=base; $('noteText').dispatchEvent(new Event('input'));
         rec=null;
-        if(listening && fails<3) { try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } }
+        if(!finalPart) fails++;
+        // Restart after a short gap, at most 20 times, and stop after two quiet rounds so it can never lock up.
+        if(listening && fails<2 && restarts<20) { restarts++; setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } } },400); }
         else if(listening) stopAll('Dictation stopped. Tap Dictate to carry on.');
       };
       rec.start();
@@ -385,12 +387,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
       if(listening){ stopAll(); return; }
-      try{
-        if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
-          const s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(t=>t.stop());
-        }
-      }catch(e){ stopAll('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone's app settings.'); return; }
-      base=$('noteText').value; fails=0; listening=true; setBtn(true); toast('Listening… speak now');
+      base=$('noteText').value; fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
       try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
     });
   }
