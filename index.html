@@ -475,7 +475,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     try{
       const byId=new Map(notes.map(n=>[n.id,n]));
       const ups=x.up.filter(id=>byId.has(id)).slice(0,40), dels=x.del.slice(0,40);
-      const payload={action:'sync',deleted:dels,notes:ups.map(id=>{ const n=byId.get(id); return {id:n.id,date:fmtDate.format(n.createdAt),time:fmtTime.format(n.createdAt),client:nameOf(n.clientId)||n.clientName,text:n.text,edited:n.editedAt?fmtTime.format(n.editedAt)+' '+fmtDate.format(n.editedAt):''}; })};
+      const payload={action:'sync',deleted:dels,notes:ups.map(id=>{ const n=byId.get(id); return {id:n.id,date:fmtDate.format(n.createdAt),time:fmtTime.format(n.createdAt),client:nameOf(n.clientId)||n.clientName,text:n.text,ts:n.createdAt,edited:n.editedAt?fmtTime.format(n.editedAt)+' '+fmtDate.format(n.editedAt):''}; })};
       const data=await callDrive(drive,payload);
       const done=new Set(data.done||[]); const y=q();
       y.up=y.up.filter(id=>byId.has(id) && !done.has(id)); y.del=y.del.filter(id=>!done.has(id)); ls.set('driveQ',y);

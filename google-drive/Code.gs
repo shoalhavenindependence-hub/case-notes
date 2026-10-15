@@ -3,6 +3,7 @@
  *
  * Receives notes from the Case Notes app and keeps them in a Google Sheet
  * called "Shift Case Notes" in your Google Drive (created the first time).
+ * The "By client" tab shows one column per client with their notes listed downwards.
  *
  * Setup: change SECRET below to a word only you know, then
  * Deploy > New deployment > Web app (Execute as: Me, Who has access: Anyone).
@@ -10,8 +11,9 @@
  */
 const SECRET = 'change-me';
 
-const SHEET_NAME = 'Notes';
-const HEADERS = ['Note ID', 'Date', 'Time', 'Client', 'Case note', 'Last edited', 'Sent to Drive'];
+const SHEET_NAME = 'Notes';          // one row per note (used to keep things in step; hidden)
+const BY_CLIENT_NAME = 'By client';  // one column per client, notes listed downwards
+const HEADERS = ['Note ID', 'Date', 'Time', 'Client', 'Case note', 'Last edited', 'Sent to Drive', 'Timestamp'];
 
 function doPost(e) {
   try {
@@ -26,6 +28,7 @@ function doPost(e) {
       const done = [];
       (body.notes || []).forEach(n => { upsert_(sheet, n); done.push(n.id); });
       (body.deleted || []).forEach(id => { remove_(sheet, id); done.push(id); });
+      rebuildByClient();
       return reply_({ ok: true, done: done });
     } finally {
       lock.releaseLock();
@@ -40,7 +43,7 @@ function doGet() {
 }
 
 function upsert_(sheet, n) {
-  const row = [n.id, n.date, n.time, n.client, n.text, n.edited || '', new Date()];
+  const row = [n.id, n.date, n.time, n.client, n.text, n.edited || '', new Date(), n.ts || ''];
   const at = findRow_(sheet, n.id);
   if (at) sheet.getRange(at, 1, 1, row.length).setValues([row]);
   else sheet.appendRow(row);
@@ -83,7 +86,47 @@ function getSheet_() {
     sheet.getRange('E:E').setWrap(true);
     sheet.hideColumns(1);
   }
+  if (sheet.getRange(1, 8).getValue() === '') sheet.getRange(1, 8).setValue('Timestamp').setFontWeight('bold');
   return sheet;
+}
+
+/** Rebuilds the "By client" tab from the Notes tab. Run it by hand any time from the editor too. */
+function rebuildByClient() {
+  const book = getBook_();
+  const notes = getSheet_();
+  const last = notes.getLastRow();
+  const rows = last < 2 ? [] : notes.getRange(2, 1, last - 1, 8).getValues();
+  const grid = buildGrid_(rows);
+
+  let tab = book.getSheetByName(BY_CLIENT_NAME);
+  if (!tab) tab = book.insertSheet(BY_CLIENT_NAME, 0);
+  tab.clear();
+  if (!grid.length) { tab.getRange(1, 1).setValue('No notes yet'); return; }
+  const width = grid[0].length;
+  tab.getRange(1, 1, grid.length, width).setValues(grid)
+    .setWrap(true).setVerticalAlignment('top');
+  tab.getRange(1, 1, 1, width).setFontWeight('bold').setBackground('#d6ebe8');
+  tab.setFrozenRows(1);
+  tab.setColumnWidths(1, width, 320);
+  book.setActiveSheet(tab);
+  book.moveActiveSheet(1);
+  if (!notes.isSheetHidden()) notes.hideSheet();
+}
+
+/** rows: [id, date, time, client, text, edited, sentAt, ts] -> 2D array, one column per client (A-Z), oldest note at the top. */
+function buildGrid_(rows) {
+  const byClient = {};
+  rows.forEach((r, i) => {
+    const client = String(r[3] || 'Unknown client');
+    (byClient[client] = byClient[client] || []).push({ ts: Number(r[7]) || 0, order: i, cell: r[1] + ', ' + r[2] + (r[5] ? ' (edited)' : '') + '\n' + r[4] });
+  });
+  const clients = Object.keys(byClient).sort((a, b) => a.localeCompare(b));
+  if (!clients.length) return [];
+  clients.forEach(c => byClient[c].sort((a, b) => (a.ts && b.ts) ? a.ts - b.ts : a.order - b.order));
+  const height = Math.max.apply(null, clients.map(c => byClient[c].length));
+  const grid = [clients.slice()];
+  for (let i = 0; i < height; i++) grid.push(clients.map(c => byClient[c][i] ? byClient[c][i].cell : ''));
+  return grid;
 }
 
 function reply_(obj) {
