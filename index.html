@@ -113,7 +113,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
         <span class="stamp" id="stamp"></span>
       </div>
       <textarea id="noteText" placeholder="Tap here, then tap the microphone on your keyboard and speak. What did you do together, how were they, anything to follow up?" disabled></textarea>
-      <p class="hint" id="micHint">Tap <b>● Dictate</b> and speak, or use the microphone key on your phone keyboard. You can fix anything before saving.</p>
+      <p class="hint" id="micHint">Tap <b>● Dictate</b> and talk naturally. Ums, repeats and stutters are cleaned up, and each pause starts a new sentence. Say “new line”, “comma” or “full stop” if you want them. Check it over before saving.</p>
       <div class="row" id="timeRow" hidden>
         <label for="whenInput" class="hint">Note time</label>
         <input type="datetime-local" id="whenInput" style="flex:1 1 200px">
@@ -359,6 +359,20 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
     const stopAll=msg=>{ listening=false; if(rec){ try{rec.abort()}catch{} rec=null; } setBtn(false); if(msg) toast(msg); };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
+    // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
+    function tidy(t){
+      t=' '+t+' ';
+      t=t.replace(/\s+(full stop|period)\b/gi,'.').replace(/\s+comma\b/gi,',').replace(/\s+question mark\b/gi,'?')
+         .replace(/\s+exclamation (mark|point)\b/gi,'!').replace(/\s*\b(new paragraph|new line|next line)\b\s*/gi,'\n');
+      t=t.replace(/\b(um+|umm+|uh+|uhm+|uh-huh|er+m?|ah+|hmm+|mm+)\b[,.]?/gi,' ');
+      t=t.replace(/\b(you know|i mean|sort of like|kind of like)\b,?\s*/gi,' ');
+      t=t.replace(/\b(\w+)(\s+\1\b)+/gi,'$1');
+      t=t.replace(/[ \t]+/g,' ').replace(/ ([,.?!])/g,'$1').replace(/([,.?!])(?=[^\s\n])/g,'$1 ').replace(/ *\n */g,'\n').trim();
+      t=t.replace(/\bi\b/g,'I').replace(/\bi'(m|ve|ll|d)\b/gi,(m,a)=>"I'"+a.toLowerCase());
+      t=t.replace(/(^|[.?!]\s+|\n)([a-z])/g,(m,a,b)=>a+b.toUpperCase());
+      if(t && !/[.?!\n]$/.test(t)) t+='.';
+      return t;
+    }
     function startOnce(){
       rec=new SR(); rec.lang='en-AU'; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
       let finalPart='';
@@ -375,7 +389,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
         else fails++;
       };
       rec.onend=()=>{
-        base=joinText(base, finalPart); $('noteText').value=base; $('noteText').dispatchEvent(new Event('input'));
+        base=joinText(base, tidy(finalPart)); $('noteText').value=base; $('noteText').dispatchEvent(new Event('input'));
         rec=null;
         if(!finalPart) fails++;
         // Restart after a short gap, at most 20 times, and stop after two quiet rounds so it can never lock up.
