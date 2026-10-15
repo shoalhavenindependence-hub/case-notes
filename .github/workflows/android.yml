@@ -36,16 +36,15 @@ jobs:
       - name: Sync Android project
         run: npx cap sync android
 
-      - name: Build test APK (install straight onto a phone)
+      - name: Build test APK without the upload key
+        if: ${{ env.HAS_KEY != 'true' }}
         working-directory: android-app/android
-        run: ./gradlew --no-daemon assembleDebug
+        run: |
+          ./gradlew --no-daemon assembleDebug
+          mkdir -p "$RUNNER_TEMP/test" && cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/test/shift-case-notes-test.apk"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: shift-case-notes-test-apk
-          path: android-app/android/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Build Play Store bundle
+      # Signed with the upload key so Google sign-in (Drive sync) recognises the test app too.
+      - name: Build Play Store bundle and test APK
         if: ${{ env.HAS_KEY == 'true' }}
         working-directory: android-app/android
         env:
@@ -54,7 +53,13 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
-          ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload.jks" ./gradlew --no-daemon bundleRelease
+          ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload.jks" ./gradlew --no-daemon bundleRelease assembleRelease
+          mkdir -p "$RUNNER_TEMP/test" && cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/test/shift-case-notes-test.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shift-case-notes-test-apk
+          path: ${{ runner.temp }}/test/shift-case-notes-test.apk
 
       - uses: actions/upload-artifact@v4
         if: ${{ hashFiles('android-app/android/app/build/outputs/bundle/release/*.aab') != '' }}

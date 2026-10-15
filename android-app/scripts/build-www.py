@@ -2,7 +2,8 @@
 """Builds android-app/www/index.html from the web app (../index.html).
 
 The Play Store app shares the web app's screens and logic, with these changes:
-- no web-install bits (manifest, service worker) and no Google Apps Script sync
+- no web-install bits (manifest, service worker)
+- Google Drive sync signs in with the person's Google account instead of an Apps Script link
 - files are saved through Android's share menu (pick Google Drive, Gmail, Files...)
 - Dictate uses Android's own speech recognition
 - a free trial, then a Google Play purchase to keep adding notes
@@ -32,13 +33,34 @@ sub('<link rel="apple-touch-icon" href="icon-192.png">\n', '')
 sub('<link rel="icon" href="icon-192.png">\n', '')
 sub("  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});\n", '')
 
-# --- Google Apps Script sync -> gone; the share menu covers Drive ---
-s = cut(s, '    <div class="pad" id="drivePanel">', '  </section>\n</div>')
-s = cut(s, '  /* ---------- Google Drive sync ---------- */', '  store={')
-sub(" if(drive){ queueUp(n.id); setTimeout(flushDrive,50); }", '')
-sub(" if(drive){ queueDel(id); setTimeout(flushDrive,50); }", '')
-sub(" if(drive){ notes.forEach(n=>queueUp(n.id)); flushDrive(); }", '')
-sub("  flushDrive();\n", '')
+# --- Google Drive: Apps Script sync -> sign in with Google (scripts/drive-sync.js) ---
+s = cut(s, '    <div class="pad" id="drivePanel">', '  </section>\n</div>', """    <div class="pad" id="drivePanel">
+      <h2>Google Drive</h2>
+      <p class="hint" id="driveStatus">Off. Connect your Google account and every note you save, edit or delete is copied to your Google Drive automatically, in a "Shift Case Notes" folder with a spreadsheet for each client. If you have no signal, notes wait and send later.</p>
+      <div class="row">
+        <button class="btn primary" id="gConnect">Connect Google Drive</button>
+        <button class="btn small" id="gSyncNow" hidden>Send everything again</button>
+        <button class="btn small" id="gOff" hidden>Disconnect</button>
+      </div>
+    </div>
+""")
+s = cut(s, '  /* ---------- Google Drive sync ---------- */', '  store={', (ROOT / 'android-app' / 'scripts' / 'drive-sync.js').read_text())
+sub(" if(drive){ queueUp(n.id); setTimeout(flushDrive,50); }", ' gDirty(n.clientId);')
+sub(" if(drive){ queueDel(id); setTimeout(flushDrive,50); }", ' gDirty((notes.find(x=>x.id===id)||{}).clientId);')
+sub(" if(drive){ notes.forEach(n=>queueUp(n.id)); flushDrive(); }", ' gDirtyAll();')
+sub("store.saveClients(clients).then(()=>toast('Renamed'));", "store.saveClients(clients).then(()=>toast('Renamed')); gDirty(row.dataset.id);")
+sub("  flushDrive();\n", '  if(typeof gSync==="function") gSync();\n')
+sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toast" hidden></div>
+<div class="paywall" id="gWelcome" hidden role="dialog" aria-modal="true" aria-labelledby="gWelcomeTitle">
+  <div class="pad paycard">
+    <h2 id="gWelcomeTitle">Save your notes to Google Drive?</h2>
+    <p class="hint">Sign in with your Google account once and every note is copied to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the Clients tab.</p>
+    <div class="row">
+      <button class="btn primary" id="gWelcomeYes">Connect Google Drive</button>
+      <button class="btn small" id="gWelcomeNo">Not now</button>
+    </div>
+  </div>
+</div>""")
 
 # --- wording for the share menu ---
 sub('id="exportCsv">Download CSV</button>', 'id="exportCsv">Save or share CSV</button>')
