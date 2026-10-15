@@ -1,0 +1,20 @@
+{
+  "name": "shift-case-notes-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Play Store build of Shift Case Notes",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor-community/speech-recognition": "7.0.1",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/share": "8.0.3",
+    "cordova-plugin-purchase": "13.19.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

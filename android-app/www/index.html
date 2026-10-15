@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f6b63">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Case Notes">
+<title>Shift Case Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+[hidden]{display:none!important}img{max-width:100%}html{-webkit-text-size-adjust:100%}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}
+/* Layout: one phone-width column; sticky tab bar; the dictation pad is the hero of the Log tab. */
+:root{
+  --bg:#eef2f1; --surface:#ffffff; --ink:#15302e; --muted:#5b6f6c; --line:#cfdad8;
+  --accent:#0f6b63; --accent-ink:#ffffff; --accent-soft:#d6ebe8; --warn:#9a4a10; --warn-soft:#fbe9d8; --danger:#a3271c;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1716; --surface:#172221; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
+  --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1716; --surface:#172221; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
+  --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:12px 96px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:8px 4px}
+h1{font-family:var(--display);font-weight:800;font-size:1.6rem;margin:0;letter-spacing:-.01em}
+h2{font-family:var(--display);font-weight:600;font-size:1.15rem;margin:0;text-wrap:balance}
+.clock{font-family:var(--mono);font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-block:10px}
+nav button{font:700 .95rem var(--body);padding:10px 4px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+nav button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+section{display:flex;flex-direction:column;gap:16px}
+.label{font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:700 1rem var(--body);padding:10px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip.add{border-style:dashed;color:var(--muted)}
+.chip .dot{display:inline-block;min-width:1.4em;margin-left:6px;padding:0 6px;border-radius:999px;font-size:.75rem;background:var(--accent-soft);color:var(--ink)}
+.chip[aria-pressed="true"] .dot{background:var(--accent-ink);color:var(--accent)}
+.pad{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.pad-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.stamp{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+textarea,input[type=text],input[type=datetime-local],select{width:100%;font:1rem/1.5 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:190px;resize:vertical}
+textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:1px}
+.hint{font-size:.85rem;color:var(--muted);margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:700 1rem var(--body);padding:12px 16px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);flex:1 1 160px}
+.btn.small{padding:6px 10px;font-size:.85rem;border-radius:8px}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.rec{border-color:var(--danger);color:var(--danger)}
+.btn.rec.on{background:var(--danger);color:var(--surface)}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:.9rem}
+.notes{display:flex;flex-direction:column;gap:10px}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.note-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.who{font-weight:700}
+.when{font-family:var(--mono);font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.body{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.edited{font-size:.75rem;color:var(--muted)}
+.day{font-family:var(--display);font-weight:600;font-size:1rem;margin:8px 0 0;color:var(--muted)}
+.empty{border:1.5px dashed var(--line);border-radius:12px;padding:18px;color:var(--muted);text-align:center}
+.client-row{display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.client-row input{flex:1;min-width:0;background:transparent;border-color:transparent}
+.client-row input:focus{border-color:var(--line)}
+.count{font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:700;z-index:20;max-width:90vw}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+@media (prefers-reduced-motion:no-preference){.btn.rec.on{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.7}}}
+.paywall{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--ink) 55%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.paycard{max-width:560px;width:100%}
+.trial{font-size:.85rem;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Shift Case Notes</h1>
+    <span class="clock" id="clock"></span>
+  </header>
+  <nav role="tablist">
+    <button role="tab" id="tab-log" aria-selected="true" data-tab="log">Log notes</button>
+    <button role="tab" id="tab-history" aria-selected="false" data-tab="history">History</button>
+    <button role="tab" id="tab-clients" aria-selected="false" data-tab="clients">Clients</button>
+  </nav>
+  <div id="storeBanner" class="banner" hidden></div>
+
+  <!-- LOG -->
+  <section id="view-log">
+    <div>
+      <div class="label">Who is this note for?</div>
+      <div class="chips" id="pickClients" style="margin-top:8px"></div>
+      <div class="row" id="addInline" style="margin-top:8px" hidden>
+        <input type="text" id="newClientInline" placeholder="Client name" autocomplete="off" style="flex:1 1 180px">
+        <button class="btn" id="saveClientInline">Add</button>
+      </div>
+    </div>
+
+    <div class="pad">
+      <div class="pad-head">
+        <h2 id="padTitle">Pick a client first</h2>
+        <span class="stamp" id="stamp"></span>
+      </div>
+      <textarea id="noteText" placeholder="Tap here, then tap the microphone on your keyboard and speak. What did you do together, how were they, anything to follow up?" disabled></textarea>
+      <p class="hint" id="micHint">Tap <b>● Dictate</b> and talk naturally. Ums, repeats and stutters are cleaned up, and each pause starts a new sentence. Say “new line”, “comma” or “full stop” if you want them. Check it over before saving.</p>
+      <div class="row" id="timeRow" hidden>
+        <label for="whenInput" class="hint">Note time</label>
+        <input type="datetime-local" id="whenInput" style="flex:1 1 200px">
+        <button class="btn small" id="whenNow">Use now</button>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="saveNote" disabled>Save note</button>
+        <button class="btn rec" id="recBtn" hidden>● Dictate</button>
+        <button class="btn small" id="changeTime">Change time</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="pad-head"><h2>This shift</h2><span class="count" id="todayCount"></span></div>
+      <div class="notes" id="todayNotes" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="view-history" hidden>
+    <div class="row">
+      <select id="filterClient" aria-label="Show notes for" style="flex:1 1 200px"></select>
+      <input type="text" id="search" placeholder="Search notes" aria-label="Search notes" style="flex:1 1 160px">
+    </div>
+    <div class="row">
+      <button class="btn small" id="exportCsv">Save or share CSV</button>
+      <button class="btn small" id="copyText">Copy as text</button>
+      <button class="btn small" id="backupBtn">Back up everything</button>
+      <label class="btn small" for="restoreFile" style="display:inline-block">Restore backup</label>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+      <span class="count" id="histCount"></span>
+    </div>
+    <p class="hint" id="backupHint">Your notes are stored only on this phone. Tap <b>Back up everything</b> now and then and keep the file somewhere safe (choose Google Drive or Gmail from the share menu).</p>
+    <div class="notes" id="historyNotes"></div>
+  </section>
+
+  <!-- CLIENTS -->
+  <section id="view-clients" hidden>
+    <div class="row">
+      <input type="text" id="newClient" placeholder="Add a client" autocomplete="off" style="flex:1 1 200px">
+      <button class="btn" id="addClient">Add</button>
+    </div>
+    <p class="hint">Tap a name to rename it. Hiding a client removes them from the Log screen but keeps their notes.</p>
+    <div class="notes" id="clientList"></div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="paywall" id="paywall" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
+  <div class="pad paycard">
+    <h2 id="payTitle">Your free month has ended</h2>
+    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and you can still read and export them.</p>
+    <div class="row">
+      <button class="btn primary" id="buyBtn">Unlock</button>
+      <button class="btn small" id="restoreBuy">I've already paid</button>
+    </div>
+    <button class="btn small" id="payLater">Not now</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const fmtDate = new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  const fmtTime = new Intl.DateTimeFormat('en-AU',{hour:'numeric',minute:'2-digit'});
+  const fmtDay = new Intl.DateTimeFormat('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uidGen = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  const dayKey = ms => { const d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); };
+  const toLocalInput = ms => { const d=new Date(ms); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
+  const ls = { get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}} };
+
+  let clients = [];      // {id,name,hidden}
+  let notes = [];        // {id,clientId,clientName,text,createdAt,editedAt}
+  let selected = ls.get('sel', null);
+  let customWhen = null; // ms or null => now
+  let store = null;      // {saveClients, putNote, deleteNote}
+  let ready = false;
+
+  function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2200); }
+
+  /* ---------- tabs ---------- */
+  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+  function showTab(t){
+    document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===t)));
+    ['log','history','clients'].forEach(v=>$('view-'+v).hidden = v!==t);
+    ls.set('tab',t); render();
+  }
+
+  /* ---------- clock + stamp ---------- */
+  function tick(){
+    const now=Date.now();
+    $('clock').textContent = fmtDate.format(now)+' · '+fmtTime.format(now);
+    const when = customWhen ?? now;
+    $('stamp').textContent = (customWhen?'Set to ':'Stamped ')+fmtTime.format(when)+', '+fmtDate.format(when);
+  }
+  setInterval(tick,15000); tick();
+
+  /* ---------- rendering ---------- */
+  const activeClients = () => clients.filter(c=>!c.hidden);
+  const nameOf = id => (clients.find(c=>c.id===id)||{}).name;
+
+  function noteCard(n, opts={}){
+    const who = nameOf(n.clientId) || n.clientName || 'Unknown client';
+    const edited = n.editedAt ? `<span class="edited">Edited ${fmtTime.format(n.editedAt)}, ${fmtDate.format(n.editedAt)}</span>` : '';
+    return `<article class="note" data-id="${esc(n.id)}">
+      <div class="note-top"><span class="who">${esc(who)}</span><span class="when">${fmtTime.format(n.createdAt)} · ${fmtDate.format(n.createdAt)}</span></div>
+      <p class="body">${esc(n.text)}</p>${edited}
+      <div class="row"><button class="btn small" data-act="edit">Edit</button><button class="btn small" data-act="del">Delete</button></div>
+    </article>`;
+  }
+
+  function render(){
+    // client chips
+    const today = dayKey(Date.now());
+    const todayBy = {};
+    notes.forEach(n=>{ if(dayKey(n.createdAt)===today) todayBy[n.clientId]=(todayBy[n.clientId]||0)+1; });
+    if (selected && !activeClients().some(c=>c.id===selected)) selected=null;
+    $('pickClients').innerHTML = activeClients().map(c=>
+      `<button class="chip" data-id="${esc(c.id)}" aria-pressed="${c.id===selected}">${esc(c.name)}${todayBy[c.id]?`<span class="dot" title="Notes today">${todayBy[c.id]}</span>`:''}</button>`
+    ).join('') + `<button class="chip add" id="addChip">+ New client</button>`;
+    const sel = clients.find(c=>c.id===selected);
+    $('padTitle').textContent = sel ? 'Note for '+sel.name : (ready && !activeClients().length ? 'Add your first client' : 'Pick a client first');
+    $('noteText').disabled = !sel;
+    $('saveNote').disabled = !sel || !$('noteText').value.trim();
+
+    const todays = notes.filter(n=>dayKey(n.createdAt)===today);
+    $('todayCount').textContent = todays.length ? todays.length+(todays.length===1?' note':' notes') : '';
+    $('todayNotes').innerHTML = todays.length ? todays.map(n=>noteCard(n)).join('')
+      : `<div class="empty">${ready?'No notes yet today. Pick a client above, speak your note, then tap Save note.':'Loading your notes…'}</div>`;
+
+    // history
+    const f = $('filterClient'); const fv = f.value || 'all';
+    f.innerHTML = `<option value="all">All clients</option>` + clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}${c.hidden?' (hidden)':''}</option>`).join('');
+    f.value = clients.some(c=>c.id===fv)?fv:'all';
+    const list = filtered();
+    $('histCount').textContent = list.length+(list.length===1?' note':' notes');
+    let html='', last='';
+    list.forEach(n=>{ const k=dayKey(n.createdAt); if(k!==last){ html+=`<h3 class="day">${fmtDay.format(n.createdAt)}</h3>`; last=k; } html+=noteCard(n); });
+    $('historyNotes').innerHTML = html || `<div class="empty">${notes.length?'No notes match.':'Saved notes will appear here, newest first, grouped by day.'}</div>`;
+
+    // clients
+    const counts={}; notes.forEach(n=>counts[n.clientId]=(counts[n.clientId]||0)+1);
+    $('clientList').innerHTML = clients.length ? clients.map(c=>`<div class="client-row" data-id="${esc(c.id)}">
+      <input type="text" id="cn-${esc(c.id)}" value="${esc(c.name)}" aria-label="Client name">
+      <span class="count">${counts[c.id]||0} notes</span>
+      <button class="btn small" data-act="toggle">${c.hidden?'Show':'Hide'}</button></div>`).join('')
+      : `<div class="empty">No clients yet. Add the people you support, one at a time.</div>`;
+  }
+
+  function filtered(){
+    const fv=$('filterClient').value||'all', q=$('search').value.trim().toLowerCase();
+    return notes.filter(n=>(fv==='all'||n.clientId===fv) && (!q || n.text.toLowerCase().includes(q) || (nameOf(n.clientId)||n.clientName||'').toLowerCase().includes(q)));
+  }
+
+  /* ---------- log interactions ---------- */
+  $('pickClients').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    if(b.id==='addChip'){ $('addInline').hidden=false; $('newClientInline').focus(); return; }
+    saveDraft(); selected=b.dataset.id; ls.set('sel',selected);
+    $('noteText').value = ls.get('draft:'+selected,''); render(); $('noteText').focus();
+  });
+  async function addClient(name){
+    name=name.trim(); if(!name) return null;
+    const c={id:uidGen(),name,hidden:false}; clients=[...clients,c];
+    render(); await store.saveClients(clients).catch(()=>toast('Could not save client. Try again.'));
+    return c;
+  }
+  $('saveClientInline').addEventListener('click',async()=>{ const c=await addClient($('newClientInline').value); if(c){ $('newClientInline').value=''; $('addInline').hidden=true; selected=c.id; ls.set('sel',selected); $('noteText').value=''; render(); $('noteText').focus(); }});
+  $('newClientInline').addEventListener('keydown',e=>{ if(e.key==='Enter') $('saveClientInline').click(); });
+
+  function saveDraft(){ if(selected) ls.set('draft:'+selected,$('noteText').value); }
+  $('noteText').addEventListener('input',()=>{ $('saveNote').disabled=!$('noteText').value.trim(); clearTimeout(saveDraft._t); saveDraft._t=setTimeout(saveDraft,400); });
+
+  $('changeTime').addEventListener('click',()=>{ $('timeRow').hidden=!$('timeRow').hidden; if(!$('timeRow').hidden) $('whenInput').value=toLocalInput(customWhen??Date.now()); });
+  $('whenInput').addEventListener('change',()=>{ const v=$('whenInput').value; customWhen = v? new Date(v).getTime() : null; tick(); });
+  $('whenNow').addEventListener('click',()=>{ customWhen=null; $('timeRow').hidden=true; tick(); });
+
+  $('saveNote').addEventListener('click',async()=>{
+    const text=$('noteText').value.trim(); const c=clients.find(x=>x.id===selected); if(!text||!c) return;
+    const n={id:uidGen(),clientId:c.id,clientName:c.name,text,createdAt:customWhen??Date.now(),editedAt:null};
+    $('saveNote').disabled=true;
+    try{ await store.putNote(n); notes=[n,...notes.filter(x=>x.id!==n.id)].sort((a,b)=>b.createdAt-a.createdAt);
+      $('noteText').value=''; ls.set('draft:'+selected,''); customWhen=null; $('timeRow').hidden=true; tick();
+      toast('Saved for '+c.name+' at '+fmtTime.format(n.createdAt)); render();
+    }catch(e){ toast(e&&e.code==='quota_exceeded'?'Storage is full. Export and delete old notes.':'Not saved. Check your connection and try again.'); $('saveNote').disabled=false; }
+  });
+
+  /* ---------- edit / delete (both lists) ---------- */
+  function onNoteClick(e){
+    const b=e.target.closest('button[data-act]'); if(!b) return;
+    const card=b.closest('.note'); const n=notes.find(x=>x.id===card.dataset.id); if(!n) return;
+    const act=b.dataset.act;
+    if(act==='edit'){
+      card.querySelector('.body').outerHTML=`<textarea class="edit-box" id="ed-${esc(n.id)}">${esc(n.text)}</textarea>`;
+      b.parentElement.innerHTML=`<button class="btn small" data-act="save">Save changes</button><button class="btn small" data-act="cancel">Cancel</button>`;
+    } else if(act==='cancel'){ render(); }
+    else if(act==='save'){
+      const t=card.querySelector('.edit-box').value.trim(); if(!t) return;
+      const upd={...n,text:t,editedAt:Date.now()};
+      store.putNote(upd).then(()=>{ notes=notes.map(x=>x.id===n.id?upd:x); toast('Note updated'); render(); }).catch(()=>toast('Not saved. Try again.'));
+    } else if(act==='del'){
+      b.parentElement.innerHTML=`<span class="confirm">Delete this note for good? <button class="btn small danger" data-act="del-yes">Delete</button><button class="btn small" data-act="cancel">Keep</button></span>`;
+    } else if(act==='del-yes'){
+      store.deleteNote(n.id).then(()=>{ notes=notes.filter(x=>x.id!==n.id); toast('Note deleted'); render(); }).catch(()=>toast('Could not delete. Try again.'));
+    }
+  }
+  $('todayNotes').addEventListener('click',onNoteClick);
+  $('historyNotes').addEventListener('click',onNoteClick);
+
+  /* ---------- history tools ---------- */
+  $('filterClient').addEventListener('change',render);
+  $('search').addEventListener('input',()=>{ clearTimeout(render._t); render._t=setTimeout(render,200); });
+
+  function csv(list){
+    const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const rows=[['Date','Time','Client','Note','Last edited']];
+    list.slice().reverse().forEach(n=>rows.push([fmtDate.format(n.createdAt),fmtTime.format(n.createdAt),nameOf(n.clientId)||n.clientName,n.text,n.editedAt?fmtDate.format(n.editedAt)+' '+fmtTime.format(n.editedAt):'']));
+    return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
+  }
+  function plain(list){
+    return list.slice().reverse().map(n=>`${fmtDate.format(n.createdAt)} ${fmtTime.format(n.createdAt)} | ${nameOf(n.clientId)||n.clientName}\n${n.text}`).join('\n\n');
+  }
+  $('exportCsv').addEventListener('click',async()=>{
+    const list=filtered(); if(!list.length){ toast('No notes to export'); return; }
+    const f=$('filterClient'); const who=f.value==='all'?'all-clients':(nameOf(f.value)||'client').replace(/[^\w-]+/g,'-');
+    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    await saveFile(`case-notes-${who}-${stamp}.csv`, csv(list), 'text/csv');
+  });
+  $('copyText').addEventListener('click',()=>{
+    const list=filtered(); if(!list.length){ toast('No notes to copy'); return; }
+    navigator.clipboard.writeText(plain(list)).then(()=>toast('Copied '+list.length+' notes')).catch(()=>toast('Copy was blocked on this device'));
+  });
+
+  /* ---------- clients tab ---------- */
+  $('addClient').addEventListener('click',async()=>{ if(await addClient($('newClient').value)){ $('newClient').value=''; toast('Client added'); }});
+  $('newClient').addEventListener('keydown',e=>{ if(e.key==='Enter') $('addClient').click(); });
+  $('clientList').addEventListener('change',e=>{
+    const row=e.target.closest('.client-row'); if(!row||e.target.tagName!=='INPUT') return;
+    const name=e.target.value.trim(); if(!name){ render(); return; }
+    clients=clients.map(c=>c.id===row.dataset.id?{...c,name}:c); store.saveClients(clients).then(()=>toast('Renamed')); render();
+  });
+  $('clientList').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-act="toggle"]'); if(!b) return;
+    const id=b.closest('.client-row').dataset.id;
+    clients=clients.map(c=>c.id===id?{...c,hidden:!c.hidden}:c); store.saveClients(clients); render();
+  });
+
+  /* ---------- in-page dictation ---------- */
+  // Android Chrome stops listening after each pause, so we restart until the user taps Stop.
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
+  if (NSR) {
+    const btn=$('recBtn'); btn.hidden=false;
+    let listening=false, base='', cur='', quiet=0, restarts=0, hooked=false;
+    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
+    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
+    // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
+    function tidy(t){
+      t=' '+t+' ';
+      t=t.replace(/\s+(full stop|period)\b/gi,'.').replace(/\s+comma\b/gi,',').replace(/\s+question mark\b/gi,'?')
+         .replace(/\s+exclamation (mark|point)\b/gi,'!').replace(/\s*\b(new paragraph|new line|next line)\b\s*/gi,'\n');
+      t=t.replace(/\b(um+|umm+|uh+|uhm+|uh-huh|er+m?|ah+|hmm+|mm+)\b[,.]?/gi,' ');
+      t=t.replace(/\b(you know|i mean|sort of like|kind of like)\b,?\s*/gi,' ');
+      t=t.replace(/\b(\w+)(\s+\1\b)+/gi,'$1');
+      t=t.replace(/[ \t]+/g,' ').replace(/ ([,.?!])/g,'$1').replace(/([,.?!])(?=[^\s\n])/g,'$1 ').replace(/ *\n */g,'\n').trim();
+      t=t.replace(/\bi\b/g,'I').replace(/\bi'(m|ve|ll|d)\b/gi,(m,a)=>"I'"+a.toLowerCase());
+      t=t.replace(/(^|[.?!]\s+|\n)([a-z])/g,(m,a,b)=>a+b.toUpperCase());
+      if(t && !/[.?!\n]$/.test(t)) t+='.';
+      return t;
+    }
+    const show=()=>{ $('noteText').value=joinText(base,cur); $('noteText').dispatchEvent(new Event('input')); };
+    const stopAll=msg=>{ listening=false; NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
+    async function hook(){
+      if(hooked) return; hooked=true;
+      await NSR.addListener('partialResults', d=>{ if(d && d.matches && d.matches[0]){ cur=d.matches[0]; quiet=0; show(); } });
+      await NSR.addListener('listeningState', d=>{
+        if(!d || d.status!=='stopped') return;
+        if(cur){ base=joinText(base, tidy(cur)); cur=''; show(); } else quiet++;
+        // Android stops after each pause; carry on until Stop, and give up after two quiet rounds.
+        if(listening && quiet<2 && restarts<30){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },300); }
+        else if(listening){ listening=false; setBtn(false); }
+      });
+    }
+    function startOnce(){ NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.')); }
+    btn.addEventListener('click',async()=>{
+      if(!selected){ toast('Pick a client first'); return; }
+      if(listening){ stopAll(); return; }
+      try{
+        const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
+        let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
+        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Shift Case Notes in your phone settings to use Dictate.'); return; }
+        await hook();
+      }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
+      base=$('noteText').value; cur=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
+      startOnce();
+    });
+  } else if (SR) {
+    const btn=$('recBtn'); btn.hidden=false;
+    let rec=null, listening=false, base='', fails=0, restarts=0;
+    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
+    const stopAll=msg=>{ listening=false; if(rec){ try{rec.abort()}catch{} rec=null; } setBtn(false); if(msg) toast(msg); };
+    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
+    // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
+    function tidy(t){
+      t=' '+t+' ';
+      t=t.replace(/\s+(full stop|period)\b/gi,'.').replace(/\s+comma\b/gi,',').replace(/\s+question mark\b/gi,'?')
+         .replace(/\s+exclamation (mark|point)\b/gi,'!').replace(/\s*\b(new paragraph|new line|next line)\b\s*/gi,'\n');
+      t=t.replace(/\b(um+|umm+|uh+|uhm+|uh-huh|er+m?|ah+|hmm+|mm+)\b[,.]?/gi,' ');
+      t=t.replace(/\b(you know|i mean|sort of like|kind of like)\b,?\s*/gi,' ');
+      t=t.replace(/\b(\w+)(\s+\1\b)+/gi,'$1');
+      t=t.replace(/[ \t]+/g,' ').replace(/ ([,.?!])/g,'$1').replace(/([,.?!])(?=[^\s\n])/g,'$1 ').replace(/ *\n */g,'\n').trim();
+      t=t.replace(/\bi\b/g,'I').replace(/\bi'(m|ve|ll|d)\b/gi,(m,a)=>"I'"+a.toLowerCase());
+      t=t.replace(/(^|[.?!]\s+|\n)([a-z])/g,(m,a,b)=>a+b.toUpperCase());
+      if(t && !/[.?!\n]$/.test(t)) t+='.';
+      return t;
+    }
+    function startOnce(){
+      rec=new SR(); rec.lang='en-AU'; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
+      let finalPart='';
+      rec.onresult=ev=>{
+        fails=0; let interim=''; finalPart='';
+        for(let k=0;k<ev.results.length;k++){ const r=ev.results[k]; if(r.isFinal) finalPart+=r[0].transcript; else interim+=r[0].transcript; }
+        $('noteText').value=joinText(base, finalPart+interim);
+        $('noteText').dispatchEvent(new Event('input'));
+      };
+      rec.onerror=ev=>{
+        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. Allow the microphone for Shift Case Notes in your phone settings.');
+        else if(ev.error==='network') stopAll('Dictation needs an internet connection. Use the keyboard microphone instead.');
+        else if(ev.error==='audio-capture') stopAll('No microphone found.');
+        else fails++;
+      };
+      rec.onend=()=>{
+        base=joinText(base, tidy(finalPart)); $('noteText').value=base; $('noteText').dispatchEvent(new Event('input'));
+        rec=null;
+        if(!finalPart) fails++;
+        // Restart after a short gap, at most 20 times, and stop after two quiet rounds so it can never lock up.
+        if(listening && fails<2 && restarts<20) { restarts++; setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } } },400); }
+        else if(listening) stopAll('Dictation stopped. Tap Dictate to carry on.');
+      };
+      rec.start();
+    }
+    btn.addEventListener('click',async()=>{
+      if(!selected){ toast('Pick a client first'); return; }
+      if(listening){ stopAll(); return; }
+      base=$('noteText').value; fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
+      try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
+    });
+  }
+
+  /* ---------- files ---------- */
+  async function saveFile(name, text, type){
+    const P = window.Capacitor && window.Capacitor.Plugins;
+    if (P && P.Filesystem && P.Share) {
+      try{
+        const res = await P.Filesystem.writeFile({path:name, data:text, directory:'CACHE', encoding:'utf8'});
+        await P.Share.share({title:name, dialogTitle:'Save or send '+name, url:res.uri});
+      }catch(e){ if(!/cancel/i.test(String(e && (e.message||e)))) toast('Could not share the file.'); }
+      return;
+    }
+    const file = new File([text], name, {type});
+    try{ if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }
+    catch(e){ if(e && e.name==='AbortError') return; }
+    const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); toast('File saved');
+  }
+  $('backupBtn').addEventListener('click',()=>{
+    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    ls.set('lastBackup',Date.now());
+    saveFile(`case-notes-backup-${stamp}.json`, JSON.stringify({app:'shift-case-notes',version:1,exportedAt:Date.now(),clients,notes},null,1),'application/json');
+  });
+  $('restoreFile').addEventListener('change',async e=>{
+    const f=e.target.files[0]; e.target.value=''; if(!f) return;
+    try{
+      const data=JSON.parse(await f.text());
+      if(data.app!=='shift-case-notes'||!Array.isArray(data.notes)) throw 0;
+      const cMap=new Map(clients.map(c=>[c.id,c])); (data.clients||[]).forEach(c=>{ if(!cMap.has(c.id)) cMap.set(c.id,c); });
+      const nMap=new Map(notes.map(n=>[n.id,n])); let added=0; data.notes.forEach(n=>{ if(!nMap.has(n.id)){ nMap.set(n.id,n); added++; } });
+      clients=[...cMap.values()]; notes=[...nMap.values()].sort((a,b)=>b.createdAt-a.createdAt);
+      ls.set('local:clients',clients); ls.set('local:notes',notes); render(); toast('Restored '+added+' notes');
+    }catch{ toast('That file is not a Case Notes backup'); }
+  });
+
+  /* ---------- storage (on this device) ---------- */
+  clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;
+
+  store={
+    async saveClients(c){ ls.set('local:clients',c); },
+    async putNote(n){ const all=ls.get('local:notes',[]).filter(x=>x.id!==n.id); all.push(n); ls.set('local:notes',all); if(JSON.stringify(ls.get('local:notes',[])).indexOf(n.id)<0) throw {code:'quota_exceeded'}; },
+    async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); },
+  };
+  try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
+  const lb=ls.get('lastBackup',0);
+  if(notes.length>=5 && Date.now()-lb>14*864e5){ const b=$('storeBanner'); b.hidden=false; b.textContent=lb?'It has been over two weeks since your last backup. Open History and tap Back up everything.':'Your notes are only on this phone. Open History and tap Back up everything to keep a copy safe.'; }
+  if(selected) $('noteText').value=ls.get('draft:'+selected,'');
+  showTab(ls.get('tab','log'));
+
+  /* ---------- free trial and purchase (Google Play) ---------- */
+  const TRIAL_DAYS = 30;
+  const PRODUCT_ID = 'full_unlock';
+  let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
+  let unlocked = ls.get('unlocked', false);
+  const daysLeft = () => Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now()-firstOpen)/864e5));
+  const locked = () => !unlocked && daysLeft()===0 && !!window.CdvPurchase;
+  function showPaywall(){ $('paywall').hidden=false; }
+  $('payLater').addEventListener('click',()=>{ $('paywall').hidden=true; });
+  // Block new notes (not reading or exporting) once the trial is over.
+  $('saveNote').addEventListener('click', e=>{ if(locked()){ e.stopImmediatePropagation(); showPaywall(); } }, true);
+  function trialNote(){
+    const b=$('storeBanner');
+    if(unlocked || !window.CdvPurchase) return;
+    const d=daysLeft();
+    if(d===0){ b.hidden=false; b.textContent='Your free month has ended. Tap here to unlock Shift Case Notes.'; b.onclick=showPaywall; }
+    else if(d<=5){ b.hidden=false; b.textContent=d+(d===1?' day':' days')+' left in your free month. Tap here to unlock.'; b.onclick=showPaywall; }
+  }
+  document.addEventListener('deviceready', ()=>{
+    if(!window.CdvPurchase) return;
+    const { store, ProductType, Platform } = CdvPurchase;
+    store.register([{ id: PRODUCT_ID, type: ProductType.NON_CONSUMABLE, platform: Platform.GOOGLE_PLAY }]);
+    const refresh=()=>{
+      const p=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY);
+      if(p && p.owned){ unlocked=true; ls.set('unlocked',true); $('paywall').hidden=true; $('storeBanner').hidden=true; }
+      const price=p && p.pricing && p.pricing.price;
+      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and you can still read and export them.'; }
+    };
+    store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Shift Case Notes is unlocked.'); }).productUpdated(refresh);
+    store.initialize([Platform.GOOGLE_PLAY]).then(()=>{ refresh(); trialNote(); });
+    $('buyBtn').addEventListener('click',()=>{
+      const offer=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY)?.getOffer();
+      if(!offer){ toast('Google Play is not ready yet. Check your connection and try again.'); return; }
+      offer.order().then(err=>{ if(err && err.code!==CdvPurchase.ErrorCode.PAYMENT_CANCELLED) toast('The purchase did not go through. Please try again.'); });
+    });
+    $('restoreBuy').addEventListener('click',()=>{ store.restorePurchases().then(()=>{ refresh(); if(!unlocked) toast('No purchase found for this Google account.'); }); });
+  }, false);
+})();
+</script>
+</body>
+</html>

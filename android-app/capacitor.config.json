@@ -1,0 +1,8 @@
+{
+  "appId": "com.shoalhavenindependence.casenotes",
+  "appName": "Shift Case Notes",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}
