@@ -7,6 +7,7 @@ The Play Store app shares the web app's screens and logic, with these changes:
 - files are saved through Android's share menu (pick Google Drive, Gmail, Files...)
 - Dictate uses Android's own speech recognition
 - a free trial, then a Google Play purchase to keep adding notes
+- hands-free notes for the car (scripts/hands-free.js): asks who the note is for, takes it down, saves on "save note"
 """
 import pathlib, re, sys
 
@@ -113,11 +114,36 @@ native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform 
       base=$('noteText').value; cur=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
       startOnce();
     });
-  } else '''
+''' + (ROOT / 'android-app' / 'scripts' / 'hands-free.js').read_text() + '''  } else '''
 sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n  if (SR) {",
     "  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n" + native + "if (SR) {")
 sub('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.',
     'Microphone is blocked. Allow the microphone for Shift Case Notes in your phone settings.')
+
+# --- hands-free notes: start button, listening bar, and the setting ---
+sub('''  <section id="view-log">
+''', '''  <section id="view-log">
+    <div class="hfbar" id="hfBar" hidden role="status">
+      <span class="hfdot" aria-hidden="true"></span>
+      <span id="hfMsg" style="flex:1"></span>
+      <button class="btn small" id="hfStopBtn">Stop</button>
+    </div>
+''')
+sub('''        <button class="btn small" id="changeTime">Change time</button>
+''', '''        <button class="btn small" id="changeTime">Change time</button>
+        <button class="btn small" id="hfBtn">Hands-free</button>
+''')
+sub('''    <div class="pad" id="drivePanel">''', '''    <div class="pad" id="hfPanel">
+      <h2>Hands-free notes (for the car)</h2>
+      <p class="hint">Say “Hey Google, open Shift Case Notes”. The app asks who the note is for, you say the name and then your note, and say “save note” at the end. It reads back who it saved it for. You can also tap <b>Hands-free</b> on the Log screen, or press and hold the app icon and choose <b>Hands-free note</b>.</p>
+      <label class="row" style="align-items:center;gap:10px"><input type="checkbox" id="hfAuto" style="width:auto;flex:none"> Start hands-free every time I open the app</label>
+    </div>
+    <div class="pad" id="drivePanel">''')
+sub('</style>', '''.hfbar{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--ink);color:var(--bg);font-weight:600}
+.hfbar .btn{background:var(--bg);color:var(--ink)}
+.hfdot{width:12px;height:12px;border-radius:50%;background:#e5484d;animation:hfpulse 1.2s ease-in-out infinite}
+@keyframes hfpulse{50%{opacity:.35}}
+</style>''')
 
 # --- free trial, then a Google Play purchase ---
 sub('<div class="toast" id="toast" hidden></div>', '''<div class="toast" id="toast" hidden></div>
