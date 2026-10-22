@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="hands_free_note"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_hands_free_short"
+        android:shortcutLongLabel="@string/shortcut_hands_free_long">
+        <intent
+            android:action="com.shoalhavenindependence.casenotes.HANDS_FREE"
+            android:targetPackage="com.shoalhavenindependence.casenotes"
+            android:targetClass="com.shoalhavenindependence.casenotes.MainActivity" />
+    </shortcut>
+</shortcuts>

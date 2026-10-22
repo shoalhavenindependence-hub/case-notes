@@ -4,4 +4,6 @@
     <string name="title_activity_main">Shift Case Notes</string>
     <string name="package_name">com.shoalhavenindependence.casenotes</string>
     <string name="custom_url_scheme">com.shoalhavenindependence.casenotes</string>
+    <string name="shortcut_hands_free_short">Hands-free note</string>
+    <string name="shortcut_hands_free_long">Hands-free case note</string>
 </resources>
