@@ -34,11 +34,13 @@ sub("  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js'
 
 # --- Google Drive: Apps Script sync -> sign in with Google (scripts/drive-sync.js) ---
 s = cut(s, '    <!-- drive panel -->\n', '    <!-- /drive panel -->\n', """    <div class="pad" id="drivePanel">
-      <h2>Google Drive</h2>
-      <p class="hint" id="driveStatus">Off. Connect your Google account and every note you save, edit or delete is copied to your Google Drive automatically, in a "Shift Case Notes" folder with a spreadsheet for each client. If you have no signal, notes wait and send later.</p>
+      <h2>Back up notes to Google Drive</h2>
+      <p class="hint">Your notes are stored on this phone. Back them up to Google Drive so they’re safe if your phone is lost, broken or replaced. Every note you save, edit or delete is backed up automatically, with a spreadsheet for each client.</p>
+      <div class="account" id="driveAccount" hidden></div>
+      <p class="hint" id="driveStatus">Not backed up yet. Tap Connect Google Drive and choose your Google account.</p>
       <div class="row">
         <button class="btn primary" id="gConnect">Connect Google Drive</button>
-        <button class="btn small" id="gSyncNow" hidden>Send everything again</button>
+        <button class="btn small" id="gSyncNow" hidden>Back up everything again</button>
         <button class="btn small" id="gOff" hidden>Disconnect</button>
       </div>
     </div>
@@ -51,8 +53,8 @@ sub("  flushDrive();\n", '  if(typeof gSync==="function") gSync();\n')
 sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toast" hidden></div>
 <div class="paywall" id="gWelcome" hidden role="dialog" aria-modal="true" aria-labelledby="gWelcomeTitle">
   <div class="pad paycard">
-    <h2 id="gWelcomeTitle">Save your notes to Google Drive?</h2>
-    <p class="hint">Sign in with your Google account once and every note is copied to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the History tab.</p>
+    <h2 id="gWelcomeTitle">Back up your notes to Google Drive?</h2>
+    <p class="hint">Your notes are stored on this phone. Sign in with your Google account once and every note is backed up to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the History tab.</p>
     <div class="row">
       <button class="btn primary" id="gWelcomeYes">Connect Google Drive</button>
       <button class="btn small" id="gWelcomeNo">Not now</button>

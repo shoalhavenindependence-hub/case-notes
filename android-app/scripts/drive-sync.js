@@ -20,12 +20,23 @@
   function gStatus(msg){
     $('driveStatus').textContent = msg;
     $('gSyncNow').hidden = $('gOff').hidden = !gOn;
+    const a = gOn && ls.get('gAccount', null);
+    $('driveAccount').hidden = !gOn;
+    $('driveAccount').innerHTML = !gOn ? '' : a && a.email
+      ? `<span class="label">Backing up to this Google account</span>${a.name?`<span class="name">${esc(a.name)}</span>`:''}<span class="email">${esc(a.email)}</span>`
+      : `<span class="label">Backing up to your Google Drive</span><span class="name">Connected</span>`;
   }
   function gIdle(){
     const waiting = ls.get('gDirty',[]).length, last = ls.get('gLast',0);
     $('gConnect').hidden = true;
-    gStatus(waiting ? `Connected. ${waiting} ${waiting===1?'client has':'clients have'} changes waiting to send.`
-      : `Connected. Your notes are in the "${FOLDER_NAME}" folder in your Google Drive, with a spreadsheet for each client${last?`. Last updated ${fmtTime.format(last)} ${fmtDate.format(last)}`:''}.`);
+    gStatus(waiting ? `${waiting} ${waiting===1?'client has':'clients have'} changes waiting to back up. They’ll send next time you have signal.`
+      : `All notes backed up to the "${FOLDER_NAME}" folder in Google Drive${last?`. Last backup ${fmtTime.format(last)}, ${fmtDate.format(last)}`:''}.`);
+  }
+  async function gLoadAccount(){
+    try{
+      const r = await gApi('GET', 'https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)');
+      if(r.user && r.user.emailAddress){ ls.set('gAccount', {name:r.user.displayName||'', email:r.user.emailAddress}); if(!gBusy) gIdle(); }
+    }catch(e){}
   }
 
   async function gToken(interactive){
@@ -100,7 +111,7 @@
     gBusy = true; ls.set('gDirty', []);
     const done = new Set();
     let failed = null;
-    gStatus('Sending to Google Drive…');
+    gStatus('Backing up to Google Drive…');
     try{
       const folder = await gFolder();
       for(const cid of dirty){
@@ -124,8 +135,8 @@
     }finally{
       gBusy = false;
       if(!failed) gIdle();
-      else if(failed.code==='consent_required'){ $('gConnect').hidden=false; gStatus('Google needs you to sign in again. Tap Connect Google Drive. Your notes are safe on this phone.'); }
-      else gStatus(`Could not reach Google Drive${failed.status?` (error ${failed.status})`:''}. Notes will send next time you open the app with signal.`);
+      else if(failed.code==='consent_required'){ $('gConnect').hidden=false; gStatus('Google needs you to sign in again. Tap Connect Google Drive. Your notes are safe on this phone in the meantime.'); }
+      else gStatus(`Could not reach Google Drive${failed.status?` (error ${failed.status})`:''}. Notes will back up next time you open the app with signal.`);
       if(gAgain){ gAgain=false; gSoon(); }
     }
   }
@@ -137,6 +148,7 @@
       gTok = null;
       await gToken(true);
       gOn = true; ls.set('gOn', true);
+      ls.set('gAccount', null); gLoadAccount();
       toast('Connected to Google Drive'); $('storeBanner').hidden = true;
       gDirtyAll(); gSync();
     }catch(e){
@@ -151,9 +163,9 @@
     $('gSyncNow').addEventListener('click', ()=>{ gDirtyAll(); gSync(); });
     $('gOff').addEventListener('click', ()=>{
       gOn=false; gTok=null; ls.set('gOn', false); ls.set('gDirty', []);
-      $('gConnect').hidden=false; gStatus('Off. Notes already in your Google Drive stay there.');
+      $('gConnect').hidden=false; gStatus('Disconnected. Your notes are stored on this phone only. Notes already in Google Drive stay there.');
     });
-    if(gOn) gIdle(); else { $('gConnect').hidden=false; gStatus($('driveStatus').textContent); if(!ls.get('gAsked', false)) $('gWelcome').hidden=false; }
+    if(gOn){ gIdle(); if(!ls.get('gAccount', null)) setTimeout(gLoadAccount, 1500); } else { $('gConnect').hidden=false; gStatus($('driveStatus').textContent); if(!ls.get('gAsked', false)) $('gWelcome').hidden=false; }
     window.addEventListener('online', gSync);
     document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') gSync(); });
     setInterval(gSync, 5*60*1000);
