@@ -78,6 +78,10 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .client-row .cname{flex:1;min-width:0;font-weight:700;overflow-wrap:anywhere}
 .client-row .chev{color:var(--muted);font-size:1.2rem;line-height:1}
+.account{display:flex;flex-direction:column;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px}
+.account .label{font-size:.75rem;color:var(--muted)}
+.account .name{font-weight:700}
+.account .email{font-size:.9rem;color:var(--muted);overflow-wrap:anywhere}
 .tag{font-size:.75rem;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .client-row input:focus{border-color:var(--line)}
 .count{font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
@@ -144,14 +148,18 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
     </div>
     <!-- drive panel -->
     <div class="pad" id="drivePanel">
-      <h2>Send notes to Google Drive</h2>
-      <p class="hint" id="driveStatus">Off. Once connected, every note you save, edit or delete is copied to your Google Drive automatically, with a spreadsheet for each client. If you have no signal, notes wait and send later.</p>
-      <input type="text" id="driveUrl" placeholder="Paste your sync link (https://script.google.com/…)" autocomplete="off" inputmode="url">
-      <input type="text" id="driveSecret" placeholder="Your secret word" autocomplete="off">
+      <h2>Back up notes to Google Drive</h2>
+      <p class="hint">Your notes are stored on this phone. Back them up to Google Drive so they’re safe if your phone is lost, broken or replaced. Every note you save, edit or delete is backed up automatically, with a spreadsheet for each client.</p>
+      <div class="account" id="driveAccount" hidden></div>
+      <p class="hint" id="driveStatus">Not backed up yet. Connect your Google Drive below.</p>
+      <div id="driveSetup">
+        <input type="text" id="driveUrl" placeholder="Paste your sync link (https://script.google.com/…)" autocomplete="off" inputmode="url">
+        <input type="text" id="driveSecret" placeholder="Your secret word" autocomplete="off">
+      </div>
       <div class="row">
         <button class="btn primary" id="driveConnect">Connect</button>
-        <button class="btn small" id="driveSendAll" hidden>Send all notes again</button>
-        <button class="btn small" id="driveOff" hidden>Turn off</button>
+        <button class="btn small" id="driveSendAll" hidden>Back up everything again</button>
+        <button class="btn small" id="driveOff" hidden>Disconnect</button>
       </div>
     </div>
     <!-- /drive panel -->
@@ -441,13 +449,18 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
   function driveStatus(msg){
     $('driveStatus').textContent = msg;
     $('driveSendAll').hidden = $('driveOff').hidden = !drive;
-    $('driveConnect').textContent = drive ? 'Update' : 'Connect';
+    $('driveSetup').hidden = $('driveConnect').hidden = !!drive;
+    const a = drive && drive.account;
+    $('driveAccount').hidden = !drive;
+    $('driveAccount').innerHTML = !drive ? '' : a && a.email
+      ? `<span class="label">Backing up to this Google account</span>${a.name?`<span class="name">${esc(a.name)}</span>`:''}<span class="email">${esc(a.email)}</span>`
+      : `<span class="label">Backing up to your Google Drive</span><span class="name">Connected</span>`;
   }
   function statusFromQueue(){
     if(!drive) return;
     const x=q(), waiting=x.up.length+x.del.length, last=ls.get('driveLast',0);
-    driveStatus(waiting ? `Connected. ${waiting} ${waiting===1?'change is':'changes are'} waiting to send.`
-      : `Connected. Everything is in your "Shift Case Notes" folder in Google Drive${last?`, last sent ${fmtTime.format(last)} ${fmtDate.format(last)}`:''}.`);
+    driveStatus(waiting ? `${waiting} ${waiting===1?'change is':'changes are'} waiting to back up. They’ll send next time you have signal.`
+      : `All notes backed up to the "Shift Case Notes" folder in Google Drive${last?`. Last backup ${fmtTime.format(last)}, ${fmtDate.format(last)}`:''}.`);
   }
   async function callDrive(cfg, payload){
     const res=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({secret:cfg.secret,...payload})});
@@ -480,8 +493,8 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
     if(!secret){ driveStatus('Type the secret word you put in the script.'); return; }
     $('driveConnect').disabled=true; driveStatus('Checking the connection…');
     try{
-      await callDrive({url,secret},{action:'ping'});
-      const first=!drive; drive={url,secret}; ls.set('drive',drive);
+      const info=await callDrive({url,secret},{action:'ping'});
+      const first=!drive; drive={url,secret,account:info.account||null}; ls.set('drive',drive);
       if(first) notes.forEach(n=>queueUp(n.id));
       toast('Connected to Google Drive'); $('storeBanner').hidden=true; statusFromQueue(); flushDrive();
     }catch(e){
@@ -489,8 +502,12 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
     }finally{ $('driveConnect').disabled=false; }
   });
   $('driveSendAll').addEventListener('click',()=>{ notes.forEach(n=>queueUp(n.id)); statusFromQueue(); flushDrive(); });
-  $('driveOff').addEventListener('click',()=>{ drive=null; ls.set('drive',null); ls.set('driveQ',{up:[],del:[]}); $('driveUrl').value=''; $('driveSecret').value=''; driveStatus('Off. Notes already in your Google Drive stay there.'); });
-  if(drive){ $('driveUrl').value=drive.url; $('driveSecret').value=drive.secret; statusFromQueue(); } else driveStatus($('driveStatus').textContent);
+  $('driveOff').addEventListener('click',()=>{ drive=null; ls.set('drive',null); ls.set('driveQ',{up:[],del:[]}); $('driveUrl').value=''; $('driveSecret').value=''; driveStatus('Disconnected. Your notes are stored on this phone only. Notes already in Google Drive stay there.'); });
+  if(drive){
+    $('driveUrl').value=drive.url; $('driveSecret').value=drive.secret; statusFromQueue();
+    // Look up which Google account the backup goes to (needs the updated script).
+    if(!drive.account && navigator.onLine!==false) callDrive(drive,{action:'ping'}).then(info=>{ if(info.account && drive){ drive.account=info.account; ls.set('drive',drive); statusFromQueue(); } }).catch(()=>{});
+  } else driveStatus($('driveStatus').textContent);
   window.addEventListener('online',flushDrive);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') flushDrive(); });
   setInterval(flushDrive,5*60*1000);
@@ -500,7 +517,7 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
     async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); if(drive){ queueDel(id); setTimeout(flushDrive,50); } },
   };
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
-  if(notes.length && !drive){ const b=$('storeBanner'); b.hidden=false; b.textContent='Your notes are only on this phone. Tap here to send them to Google Drive and keep a copy safe.'; b.onclick=()=>{ b.hidden=true; showTab('history'); }; }
+  if(notes.length && !drive){ const b=$('storeBanner'); b.hidden=false; b.textContent='Your notes are only on this phone. Tap here to back them up to Google Drive.'; b.onclick=()=>{ b.hidden=true; showTab('history'); }; }
   if(selected) $('noteText').value=ls.get('draft:'+selected,'');
   showTab(ls.get('tab','log'));
   flushDrive();

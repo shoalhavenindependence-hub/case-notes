@@ -34,7 +34,7 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     if (body.secret !== SECRET) return reply_({ ok: false, error: 'wrong_secret' });
-    if (body.action === 'ping') return reply_({ ok: true, folder: getFolder_().getUrl() });
+    if (body.action === 'ping') return reply_({ ok: true, folder: getFolder_().getUrl(), account: account_() });
 
     const sheet = getSheet_();
     const lock = LockService.getScriptLock();
@@ -60,6 +60,16 @@ function doPost(e) {
     }
   } catch (err) {
     return reply_({ ok: false, error: String(err) });
+  }
+}
+
+/** The Google account the notes are backed up to, shown in the app. */
+function account_() {
+  try {
+    const owner = getFolder_().getOwner();
+    return owner ? { name: owner.getName(), email: owner.getEmail() } : null;
+  } catch (err) {
+    return null;
   }
 }
 
