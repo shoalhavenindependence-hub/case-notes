@@ -138,26 +138,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       <select id="filterClient" aria-label="Show notes for" style="flex:1 1 200px"></select>
       <input type="text" id="search" placeholder="Search notes" aria-label="Search notes" style="flex:1 1 160px">
     </div>
-    <div class="row">
-      <button class="btn small" id="exportCsv">Download CSV</button>
-      <button class="btn small" id="copyText">Copy as text</button>
-      <button class="btn small" id="backupBtn">Back up everything</button>
-      <label class="btn small" for="restoreFile" style="display:inline-block">Restore backup</label>
-      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
-      <span class="count" id="histCount"></span>
-    </div>
-    <p class="hint" id="backupHint">Your notes are stored only on this phone. Tap <b>Back up everything</b> now and then and keep the file somewhere safe (email it to yourself, or save it to iCloud or Google Drive).</p>
-    <div class="notes" id="historyNotes"></div>
-  </section>
-
-  <!-- CLIENTS -->
-  <section id="view-clients" hidden>
-    <div class="row">
-      <input type="text" id="newClient" placeholder="Add a client" autocomplete="off" style="flex:1 1 200px">
-      <button class="btn" id="addClient">Add</button>
-    </div>
-    <p class="hint">Tap a name to rename it. Hiding a client removes them from the Log screen but keeps their notes.</p>
-    <div class="notes" id="clientList"></div>
+    <!-- drive panel -->
     <div class="pad" id="drivePanel">
       <h2>Send notes to Google Drive</h2>
       <p class="hint" id="driveStatus">Off. Once connected, every note you save, edit or delete is copied to your Google Drive automatically, with a spreadsheet for each client. If you have no signal, notes wait and send later.</p>
@@ -169,6 +150,19 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
         <button class="btn small" id="driveOff" hidden>Turn off</button>
       </div>
     </div>
+    <!-- /drive panel -->
+    <div class="row"><span class="count" id="histCount"></span></div>
+    <div class="notes" id="historyNotes"></div>
+  </section>
+
+  <!-- CLIENTS -->
+  <section id="view-clients" hidden>
+    <div class="row">
+      <input type="text" id="newClient" placeholder="Add a client" autocomplete="off" style="flex:1 1 200px">
+      <button class="btn" id="addClient">Add</button>
+    </div>
+    <p class="hint">Tap a name to rename it. Hiding a client removes them from the Log screen but keeps their notes.</p>
+    <div class="notes" id="clientList"></div>
   </section>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -327,25 +321,6 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   $('filterClient').addEventListener('change',render);
   $('search').addEventListener('input',()=>{ clearTimeout(render._t); render._t=setTimeout(render,200); });
 
-  function csv(list){
-    const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-    const rows=[['Date','Time','Client','Note','Last edited']];
-    list.slice().reverse().forEach(n=>rows.push([fmtDate.format(n.createdAt),fmtTime.format(n.createdAt),nameOf(n.clientId)||n.clientName,n.text,n.editedAt?fmtDate.format(n.editedAt)+' '+fmtTime.format(n.editedAt):'']));
-    return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
-  }
-  function plain(list){
-    return list.slice().reverse().map(n=>`${fmtDate.format(n.createdAt)} ${fmtTime.format(n.createdAt)} | ${nameOf(n.clientId)||n.clientName}\n${n.text}`).join('\n\n');
-  }
-  $('exportCsv').addEventListener('click',async()=>{
-    const list=filtered(); if(!list.length){ toast('No notes to export'); return; }
-    const f=$('filterClient'); const who=f.value==='all'?'all-clients':(nameOf(f.value)||'client').replace(/[^\w-]+/g,'-');
-    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    await saveFile(`case-notes-${who}-${stamp}.csv`, csv(list), 'text/csv');
-  });
-  $('copyText').addEventListener('click',()=>{
-    const list=filtered(); if(!list.length){ toast('No notes to copy'); return; }
-    navigator.clipboard.writeText(plain(list)).then(()=>toast('Copied '+list.length+' notes')).catch(()=>toast('Copy was blocked on this device'));
-  });
 
   /* ---------- clients tab ---------- */
   $('addClient').addEventListener('click',async()=>{ if(await addClient($('newClient').value)){ $('newClient').value=''; toast('Client added'); }});
@@ -417,31 +392,6 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     });
   }
 
-  /* ---------- files ---------- */
-  async function saveFile(name, text, type){
-    const file = new File([text], name, {type});
-    try{ if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }
-    catch(e){ if(e && e.name==='AbortError') return; }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; document.body.appendChild(a); a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); toast('File saved');
-  }
-  $('backupBtn').addEventListener('click',()=>{
-    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    ls.set('lastBackup',Date.now());
-    saveFile(`case-notes-backup-${stamp}.json`, JSON.stringify({app:'shift-case-notes',version:1,exportedAt:Date.now(),clients,notes},null,1),'application/json');
-  });
-  $('restoreFile').addEventListener('change',async e=>{
-    const f=e.target.files[0]; e.target.value=''; if(!f) return;
-    try{
-      const data=JSON.parse(await f.text());
-      if(data.app!=='shift-case-notes'||!Array.isArray(data.notes)) throw 0;
-      const cMap=new Map(clients.map(c=>[c.id,c])); (data.clients||[]).forEach(c=>{ if(!cMap.has(c.id)) cMap.set(c.id,c); });
-      const nMap=new Map(notes.map(n=>[n.id,n])); let added=0; data.notes.forEach(n=>{ if(!nMap.has(n.id)){ nMap.set(n.id,n); added++; } });
-      clients=[...cMap.values()]; notes=[...nMap.values()].sort((a,b)=>b.createdAt-a.createdAt);
-      ls.set('local:clients',clients); ls.set('local:notes',notes); if(drive){ notes.forEach(n=>queueUp(n.id)); flushDrive(); } render(); toast('Restored '+added+' notes');
-    }catch{ toast('That file is not a Case Notes backup'); }
-  });
-
   /* ---------- storage (on this device) ---------- */
   clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;
 
@@ -496,7 +446,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       await callDrive({url,secret},{action:'ping'});
       const first=!drive; drive={url,secret}; ls.set('drive',drive);
       if(first) notes.forEach(n=>queueUp(n.id));
-      toast('Connected to Google Drive'); statusFromQueue(); flushDrive();
+      toast('Connected to Google Drive'); $('storeBanner').hidden=true; statusFromQueue(); flushDrive();
     }catch(e){
       driveStatus(e.message==='wrong_secret' ? 'The secret word doesn’t match the one in your script.' : 'Could not reach your script. Check the link, and that it was deployed with access set to Anyone.');
     }finally{ $('driveConnect').disabled=false; }
@@ -513,8 +463,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); if(drive){ queueDel(id); setTimeout(flushDrive,50); } },
   };
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
-  const lb=ls.get('lastBackup',0);
-  if(notes.length>=5 && Date.now()-lb>14*864e5){ const b=$('storeBanner'); b.hidden=false; b.textContent=lb?'It has been over two weeks since your last backup. Open History and tap Back up everything.':'Your notes are only on this phone. Open History and tap Back up everything to keep a copy safe.'; }
+  if(notes.length && !drive){ const b=$('storeBanner'); b.hidden=false; b.textContent='Your notes are only on this phone. Tap here to send them to Google Drive and keep a copy safe.'; b.onclick=()=>{ b.hidden=true; showTab('history'); }; }
   if(selected) $('noteText').value=ls.get('draft:'+selected,'');
   showTab(ls.get('tab','log'));
   flushDrive();
