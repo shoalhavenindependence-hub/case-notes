@@ -13,7 +13,7 @@
  * Deploy > New deployment > Web app (Execute as: Me, Who has access: Anyone).
  * Put the same secret word into the app.
  */
-const SECRET = 'pinkus';
+const SECRET = 'change-me';
 
 const FOLDER_NAME = 'Shift Case Notes';
 const MAIN_BOOK_NAME = 'All case notes';
