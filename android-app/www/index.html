@@ -72,6 +72,10 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 .empty{border:1.5px dashed var(--line);border-radius:12px;padding:18px;color:var(--muted);text-align:center}
 .client-row{display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
 .client-row input{flex:1;min-width:0;background:transparent;border-color:transparent}
+button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.client-row .cname{flex:1;min-width:0;font-weight:700;overflow-wrap:anywhere}
+.client-row .chev{color:var(--muted);font-size:1.2rem;line-height:1}
+.tag{font-size:.75rem;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .client-row input:focus{border-color:var(--line)}
 .count{font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:700;z-index:20;max-width:90vw}
@@ -154,12 +158,26 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 
   <!-- CLIENTS -->
   <section id="view-clients" hidden>
-    <div class="row">
-      <input type="text" id="newClient" placeholder="Add a client" autocomplete="off" style="flex:1 1 200px">
-      <button class="btn" id="addClient">Add</button>
+    <div id="clientsMain">
+      <div class="row">
+        <input type="text" id="newClient" placeholder="Add a client" autocomplete="off" style="flex:1 1 200px">
+        <button class="btn" id="addClient">Add</button>
+      </div>
+      <p class="hint">Tap a client to see their notes, rename them or hide them.</p>
+      <div class="notes" id="clientList"></div>
     </div>
-    <p class="hint">Tap a name to rename it. Hiding a client removes them from the Log screen but keeps their notes.</p>
-    <div class="notes" id="clientList"></div>
+    <div id="clientDetail" hidden>
+      <div class="row"><button class="btn small" id="clientBack">‹ All clients</button></div>
+      <div class="pad">
+        <div class="row">
+          <input type="text" id="clientName" aria-label="Client name" autocomplete="off" style="flex:1 1 200px">
+          <button class="btn small" id="clientHide">Hide</button>
+        </div>
+        <p class="hint" id="clientHint">Change the name above to rename this client. Hiding a client removes them from the Log screen but keeps their notes.</p>
+      </div>
+      <div class="pad-head"><h2 id="clientNotesTitle">Notes</h2><span class="count" id="clientNotesCount"></span></div>
+      <div class="notes" id="clientNotes"></div>
+    </div>
   </section>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -197,6 +215,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   const toLocalInput = ms => { const d=new Date(ms); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
   const ls = { get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}} };
 
+  let viewClient = null; // client open on the Clients tab
   let clients = [];      // {id,name,hidden}
   let notes = [];        // {id,clientId,clientName,text,createdAt,editedAt}
   let selected = ls.get('sel', null);
@@ -207,7 +226,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2200); }
 
   /* ---------- tabs ---------- */
-  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.tab==='clients') viewClient=null; showTab(b.dataset.tab); }));
   function showTab(t){
     document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===t)));
     ['log','history','clients'].forEach(v=>$('view-'+v).hidden = v!==t);
@@ -268,11 +287,24 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 
     // clients
     const counts={}; notes.forEach(n=>counts[n.clientId]=(counts[n.clientId]||0)+1);
-    $('clientList').innerHTML = clients.length ? clients.map(c=>`<div class="client-row" data-id="${esc(c.id)}">
-      <input type="text" id="cn-${esc(c.id)}" value="${esc(c.name)}" aria-label="Client name">
-      <span class="count">${counts[c.id]||0} notes</span>
-      <button class="btn small" data-act="toggle">${c.hidden?'Show':'Hide'}</button></div>`).join('')
+    const plural = k => k+(k===1?' note':' notes');
+    $('clientList').innerHTML = clients.length ? clients.map(c=>`<button class="client-row" data-id="${esc(c.id)}">
+      <span class="cname">${esc(c.name)}</span>${c.hidden?'<span class="tag">Hidden</span>':''}
+      <span class="count">${plural(counts[c.id]||0)}</span><span class="chev" aria-hidden="true">›</span></button>`).join('')
       : `<div class="empty">No clients yet. Add the people you support, one at a time.</div>`;
+    const vc = clients.find(c=>c.id===viewClient);
+    if(!vc) viewClient=null;
+    $('clientsMain').hidden = !!vc; $('clientDetail').hidden = !vc;
+    if(vc){
+      if(document.activeElement!==$('clientName')) $('clientName').value=vc.name;
+      $('clientHide').textContent = vc.hidden ? 'Show on Log screen' : 'Hide';
+      const mine = notes.filter(n=>n.clientId===vc.id);
+      $('clientNotesTitle').textContent = 'Notes for '+vc.name;
+      $('clientNotesCount').textContent = plural(mine.length);
+      let ch='', cl='';
+      mine.forEach(n=>{ const k=dayKey(n.createdAt); if(k!==cl){ ch+=`<h3 class="day">${fmtDay.format(n.createdAt)}</h3>`; cl=k; } ch+=noteCard(n); });
+      $('clientNotes').innerHTML = ch || `<div class="empty">No notes for ${esc(vc.name)} yet.</div>`;
+    }
   }
 
   function filtered(){
@@ -343,16 +375,21 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   /* ---------- clients tab ---------- */
   $('addClient').addEventListener('click',async()=>{ if(await addClient($('newClient').value)){ $('newClient').value=''; toast('Client added'); }});
   $('newClient').addEventListener('keydown',e=>{ if(e.key==='Enter') $('addClient').click(); });
-  $('clientList').addEventListener('change',e=>{
-    const row=e.target.closest('.client-row'); if(!row||e.target.tagName!=='INPUT') return;
-    const name=e.target.value.trim(); if(!name){ render(); return; }
-    clients=clients.map(c=>c.id===row.dataset.id?{...c,name}:c); store.saveClients(clients).then(()=>toast('Renamed')); gDirty(row.dataset.id); render();
-  });
   $('clientList').addEventListener('click',e=>{
-    const b=e.target.closest('button[data-act="toggle"]'); if(!b) return;
-    const id=b.closest('.client-row').dataset.id;
-    clients=clients.map(c=>c.id===id?{...c,hidden:!c.hidden}:c); store.saveClients(clients); render();
+    const row=e.target.closest('.client-row'); if(!row) return;
+    viewClient=row.dataset.id; render(); window.scrollTo(0,0);
   });
+  $('clientBack').addEventListener('click',()=>{ viewClient=null; render(); });
+  $('clientName').addEventListener('change',()=>{
+    const name=$('clientName').value.trim(); if(!name||!viewClient){ render(); return; }
+    clients=clients.map(c=>c.id===viewClient?{...c,name}:c); store.saveClients(clients).then(()=>toast('Renamed')); gDirty(viewClient); render();
+  });
+  $('clientHide').addEventListener('click',()=>{
+    const id=viewClient; if(!id) return;
+    clients=clients.map(c=>c.id===id?{...c,hidden:!c.hidden}:c); store.saveClients(clients); render();
+    toast(clients.find(c=>c.id===id).hidden?'Hidden from the Log screen':'Showing on the Log screen');
+  });
+  $('clientNotes').addEventListener('click',onNoteClick);
 
   /* ---------- in-page dictation ---------- */
   // Android Chrome stops listening after each pause, so we restart until the user taps Stop.

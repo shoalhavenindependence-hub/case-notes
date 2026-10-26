@@ -46,7 +46,7 @@ s = cut(s, '    <!-- drive panel -->\n', '    <!-- /drive panel -->\n', """    <
 s = cut(s, '  /* ---------- Google Drive sync ---------- */', '  store={', (ROOT / 'android-app' / 'scripts' / 'drive-sync.js').read_text())
 sub(" if(drive){ queueUp(n.id); setTimeout(flushDrive,50); }", ' gDirty(n.clientId);')
 sub(" if(drive){ queueDel(id); setTimeout(flushDrive,50); }", ' gDirty((notes.find(x=>x.id===id)||{}).clientId);')
-sub("store.saveClients(clients).then(()=>toast('Renamed'));", "store.saveClients(clients).then(()=>toast('Renamed')); gDirty(row.dataset.id);")
+sub("store.saveClients(clients).then(()=>toast('Renamed'));", "store.saveClients(clients).then(()=>toast('Renamed')); gDirty(viewClient);")
 sub("  flushDrive();\n", '  if(typeof gSync==="function") gSync();\n')
 sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toast" hidden></div>
 <div class="paywall" id="gWelcome" hidden role="dialog" aria-modal="true" aria-labelledby="gWelcomeTitle">
