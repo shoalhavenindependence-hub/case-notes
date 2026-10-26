@@ -79,6 +79,11 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
 .account .label{font-size:.75rem;color:var(--muted)}
 .account .name{font-weight:700}
 .account .email{font-size:.9rem;color:var(--muted);overflow-wrap:anywhere}
+.lock{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px}
+.lockbox{max-width:360px;width:100%;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:stretch}
+html.locked .wrap{visibility:hidden}
+.lockicon{font-size:2.6rem}
+.lockbox .btn{flex:none}
 .tag{font-size:.75rem;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .client-row input:focus{border-color:var(--line)}
 .count{font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
@@ -89,6 +94,7 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
 .paycard{max-width:560px;width:100%}
 .trial{font-size:.85rem;color:var(--muted)}
 </style>
+<script>try{ if(JSON.parse(localStorage.getItem('lockOn'))) document.documentElement.classList.add('locked'); }catch(e){}</script>
 </head>
 <body>
 
@@ -171,6 +177,14 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
       </div>
       <p class="hint">Tap a client to see their notes, rename them or hide them.</p>
       <div class="notes" id="clientList"></div>
+      <div class="pad" id="lockPanel" style="margin-top:16px">
+        <h2>Fingerprint lock</h2>
+        <p class="hint" id="lockStatus">Off. Turn this on and the app asks for your fingerprint (or your phone’s PIN) every time you open it, so nobody else can read your clients’ notes.</p>
+        <div class="row">
+          <button class="btn primary" id="lockOn">Turn on fingerprint lock</button>
+          <button class="btn small" id="lockOff" hidden>Turn off</button>
+        </div>
+      </div>
     </div>
     <div id="clientDetail" hidden>
       <div class="row"><button class="btn small" id="clientBack">‹ All clients</button></div>
@@ -206,6 +220,15 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
       <button class="btn primary" id="gWelcomeYes">Connect Google Drive</button>
       <button class="btn small" id="gWelcomeNo">Not now</button>
     </div>
+  </div>
+</div>
+<div class="lock" id="lockScreen" hidden role="dialog" aria-modal="true" aria-labelledby="lockTitle">
+  <div class="lockbox">
+    <div class="lockicon" aria-hidden="true">🔒</div>
+    <h2 id="lockTitle">Shift Case Notes is locked</h2>
+    <p class="hint">Use your fingerprint or your phone’s PIN to open your notes.</p>
+    <button class="btn primary" id="unlockBtn">Unlock</button>
+    <button class="btn small" id="lockReset">Fingerprint not working? Set it up again</button>
   </div>
 </div>
 
@@ -681,6 +704,77 @@ button.client-row{width:100%;font:inherit;color:inherit;text-align:left;cursor:p
   };
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
   if(notes.length && GD && !gOn){ const b=$('storeBanner'); b.hidden=false; b.textContent='Your notes are only on this phone. Tap here to back them up to Google Drive.'; b.onclick=()=>{ b.hidden=true; showTab('history'); }; }
+  /* ---------- fingerprint lock ---------- */
+  // Play Store app: Android's own fingerprint/PIN prompt (AppLock plugin).
+  // Web app: a passkey on this phone, which Android unlocks with fingerprint or screen lock.
+  const NativeLock = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AppLock;
+  const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const unb64 = str => Uint8Array.from(atob(str), c=>c.charCodeAt(0));
+  const rand = n => crypto.getRandomValues(new Uint8Array(n));
+  const Lock = {
+    async available(){
+      if(NativeLock) return (await NativeLock.available()).available;
+      return !!(window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
+    },
+    async enroll(){
+      if(NativeLock){ await NativeLock.verify({reason:'Confirm it’s you to turn on the lock'}); return; }
+      const cred = await navigator.credentials.create({publicKey:{
+        challenge: rand(32), rp:{name:'Shift Case Notes'},
+        user:{id: rand(16), name:'Shift Case Notes lock', displayName:'Shift Case Notes lock'},
+        pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged'},
+        timeout:60000 }});
+      ls.set('lockCred', b64(cred.rawId));
+    },
+    async verify(){
+      if(NativeLock){ await NativeLock.verify({reason:'Unlock your case notes'}); return; }
+      const id = ls.get('lockCred', null); if(!id) throw new Error('no_lock');
+      await navigator.credentials.get({publicKey:{ challenge: rand(32), allowCredentials:[{type:'public-key', id: unb64(id), transports:['internal']}], userVerification:'required', timeout:60000 }});
+    }
+  };
+  let lockOn = ls.get('lockOn', false), lockBusy = false, hiddenAt = 0;
+  function lockPanel(){
+    $('lockOn').hidden = lockOn; $('lockOff').hidden = !lockOn;
+    $('lockStatus').textContent = lockOn
+      ? 'On. The app asks for your fingerprint (or your phone’s PIN) when you open it, and again after it has been in the background for a minute.'
+      : 'Off. Turn this on and the app asks for your fingerprint (or your phone’s PIN) every time you open it, so nobody else can read your clients’ notes.';
+  }
+  async function unlock(){
+    if(lockBusy) return; lockBusy = true;
+    try{ await Lock.verify(); $('lockScreen').hidden = true; document.documentElement.classList.remove('locked'); }
+    catch(e){ /* stays locked; the Unlock button tries again */ }
+    finally{ lockBusy = false; }
+  }
+  function lockNow(){ if(!lockOn) return; $('lockScreen').hidden = false; unlock(); }
+  $('unlockBtn').addEventListener('click', unlock);
+  $('lockReset').addEventListener('click', async()=>{
+    // Setting the lock up again needs the phone's own fingerprint or screen lock, so it is still the owner.
+    if(lockBusy) return; lockBusy = true;
+    try{ await Lock.enroll(); $('lockScreen').hidden = true; document.documentElement.classList.remove('locked'); toast('Fingerprint lock set up again'); }
+    catch(e){ toast('That didn’t work. Check your phone has a fingerprint or screen lock set up.'); }
+    finally{ lockBusy = false; }
+  });
+  $('lockOn').addEventListener('click', async()=>{
+    try{
+      if(!(await Lock.available())){ toast('Set up a fingerprint or screen lock in your phone’s settings first.'); return; }
+      lockBusy = true; await Lock.enroll();
+      lockOn = true; ls.set('lockOn', true); lockPanel(); toast('Fingerprint lock is on');
+    }catch(e){ toast('The lock was not turned on. Try again.'); }
+    finally{ lockBusy = false; }
+  });
+  $('lockOff').addEventListener('click', async()=>{
+    if(lockBusy) return; lockBusy = true;
+    try{ await Lock.verify(); lockOn = false; ls.set('lockOn', false); lockPanel(); toast('Fingerprint lock is off'); }
+    catch(e){ toast('Confirm with your fingerprint to turn the lock off.'); }
+    finally{ lockBusy = false; }
+  });
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState==='hidden'){ if(!lockBusy) hiddenAt = Date.now(); }
+    else if(lockOn && hiddenAt && !lockBusy && Date.now()-hiddenAt > 60*1000){ hiddenAt = 0; lockNow(); }
+  });
+  lockPanel();
+  if(lockOn){ $('lockScreen').hidden = false; unlock(); }
+
   if(selected) $('noteText').value=ls.get('draft:'+selected,'');
   showTab(ls.get('tab','log'));
 
