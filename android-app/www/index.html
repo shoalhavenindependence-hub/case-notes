@@ -138,15 +138,17 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       <select id="filterClient" aria-label="Show notes for" style="flex:1 1 200px"></select>
       <input type="text" id="search" placeholder="Search notes" aria-label="Search notes" style="flex:1 1 160px">
     </div>
-    <div class="row">
-      <button class="btn small" id="exportCsv">Save or share CSV</button>
-      <button class="btn small" id="copyText">Copy as text</button>
-      <button class="btn small" id="backupBtn">Back up everything</button>
-      <label class="btn small" for="restoreFile" style="display:inline-block">Restore backup</label>
-      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
-      <span class="count" id="histCount"></span>
+    <div class="pad" id="drivePanel">
+      <h2>Google Drive</h2>
+      <p class="hint" id="driveStatus">Off. Connect your Google account and every note you save, edit or delete is copied to your Google Drive automatically, in a "Shift Case Notes" folder with a spreadsheet for each client. If you have no signal, notes wait and send later.</p>
+      <div class="row">
+        <button class="btn primary" id="gConnect">Connect Google Drive</button>
+        <button class="btn small" id="gSyncNow" hidden>Send everything again</button>
+        <button class="btn small" id="gOff" hidden>Disconnect</button>
+      </div>
     </div>
-    <p class="hint" id="backupHint">Your notes are stored only on this phone. Tap <b>Back up everything</b> now and then and keep the file somewhere safe (choose Google Drive or Gmail from the share menu).</p>
+    <!-- /drive panel -->
+    <div class="row"><span class="count" id="histCount"></span></div>
     <div class="notes" id="historyNotes"></div>
   </section>
 
@@ -158,22 +160,13 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     </div>
     <p class="hint">Tap a name to rename it. Hiding a client removes them from the Log screen but keeps their notes.</p>
     <div class="notes" id="clientList"></div>
-    <div class="pad" id="drivePanel">
-      <h2>Google Drive</h2>
-      <p class="hint" id="driveStatus">Off. Connect your Google account and every note you save, edit or delete is copied to your Google Drive automatically, in a "Shift Case Notes" folder with a spreadsheet for each client. If you have no signal, notes wait and send later.</p>
-      <div class="row">
-        <button class="btn primary" id="gConnect">Connect Google Drive</button>
-        <button class="btn small" id="gSyncNow" hidden>Send everything again</button>
-        <button class="btn small" id="gOff" hidden>Disconnect</button>
-      </div>
-    </div>
   </section>
 </div>
 <div class="toast" id="toast" hidden></div>
 <div class="paywall" id="paywall" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
   <div class="pad paycard">
     <h2 id="payTitle">Your free month has ended</h2>
-    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and you can still read and export them.</p>
+    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.</p>
     <div class="row">
       <button class="btn primary" id="buyBtn">Unlock</button>
       <button class="btn small" id="restoreBuy">I've already paid</button>
@@ -184,7 +177,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 <div class="paywall" id="gWelcome" hidden role="dialog" aria-modal="true" aria-labelledby="gWelcomeTitle">
   <div class="pad paycard">
     <h2 id="gWelcomeTitle">Save your notes to Google Drive?</h2>
-    <p class="hint">Sign in with your Google account once and every note is copied to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the Clients tab.</p>
+    <p class="hint">Sign in with your Google account once and every note is copied to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the History tab.</p>
     <div class="row">
       <button class="btn primary" id="gWelcomeYes">Connect Google Drive</button>
       <button class="btn small" id="gWelcomeNo">Not now</button>
@@ -346,25 +339,6 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   $('filterClient').addEventListener('change',render);
   $('search').addEventListener('input',()=>{ clearTimeout(render._t); render._t=setTimeout(render,200); });
 
-  function csv(list){
-    const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-    const rows=[['Date','Time','Client','Note','Last edited']];
-    list.slice().reverse().forEach(n=>rows.push([fmtDate.format(n.createdAt),fmtTime.format(n.createdAt),nameOf(n.clientId)||n.clientName,n.text,n.editedAt?fmtDate.format(n.editedAt)+' '+fmtTime.format(n.editedAt):'']));
-    return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
-  }
-  function plain(list){
-    return list.slice().reverse().map(n=>`${fmtDate.format(n.createdAt)} ${fmtTime.format(n.createdAt)} | ${nameOf(n.clientId)||n.clientName}\n${n.text}`).join('\n\n');
-  }
-  $('exportCsv').addEventListener('click',async()=>{
-    const list=filtered(); if(!list.length){ toast('No notes to export'); return; }
-    const f=$('filterClient'); const who=f.value==='all'?'all-clients':(nameOf(f.value)||'client').replace(/[^\w-]+/g,'-');
-    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    await saveFile(`case-notes-${who}-${stamp}.csv`, csv(list), 'text/csv');
-  });
-  $('copyText').addEventListener('click',()=>{
-    const list=filtered(); if(!list.length){ toast('No notes to copy'); return; }
-    navigator.clipboard.writeText(plain(list)).then(()=>toast('Copied '+list.length+' notes')).catch(()=>toast('Copy was blocked on this device'));
-  });
 
   /* ---------- clients tab ---------- */
   $('addClient').addEventListener('click',async()=>{ if(await addClient($('newClient').value)){ $('newClient').value=''; toast('Client added'); }});
@@ -481,39 +455,6 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
     });
   }
-
-  /* ---------- files ---------- */
-  async function saveFile(name, text, type){
-    const P = window.Capacitor && window.Capacitor.Plugins;
-    if (P && P.Filesystem && P.Share) {
-      try{
-        const res = await P.Filesystem.writeFile({path:name, data:text, directory:'CACHE', encoding:'utf8'});
-        await P.Share.share({title:name, dialogTitle:'Save or send '+name, url:res.uri});
-      }catch(e){ if(!/cancel/i.test(String(e && (e.message||e)))) toast('Could not share the file.'); }
-      return;
-    }
-    const file = new File([text], name, {type});
-    try{ if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }
-    catch(e){ if(e && e.name==='AbortError') return; }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; document.body.appendChild(a); a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); toast('File saved');
-  }
-  $('backupBtn').addEventListener('click',()=>{
-    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    ls.set('lastBackup',Date.now());
-    saveFile(`case-notes-backup-${stamp}.json`, JSON.stringify({app:'shift-case-notes',version:1,exportedAt:Date.now(),clients,notes},null,1),'application/json');
-  });
-  $('restoreFile').addEventListener('change',async e=>{
-    const f=e.target.files[0]; e.target.value=''; if(!f) return;
-    try{
-      const data=JSON.parse(await f.text());
-      if(data.app!=='shift-case-notes'||!Array.isArray(data.notes)) throw 0;
-      const cMap=new Map(clients.map(c=>[c.id,c])); (data.clients||[]).forEach(c=>{ if(!cMap.has(c.id)) cMap.set(c.id,c); });
-      const nMap=new Map(notes.map(n=>[n.id,n])); let added=0; data.notes.forEach(n=>{ if(!nMap.has(n.id)){ nMap.set(n.id,n); added++; } });
-      clients=[...cMap.values()]; notes=[...nMap.values()].sort((a,b)=>b.createdAt-a.createdAt);
-      ls.set('local:clients',clients); ls.set('local:notes',notes); gDirtyAll(); render(); toast('Restored '+added+' notes');
-    }catch{ toast('That file is not a Case Notes backup'); }
-  });
 
   /* ---------- storage (on this device) ---------- */
   clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;
@@ -657,7 +598,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       gTok = null;
       await gToken(true);
       gOn = true; ls.set('gOn', true);
-      toast('Connected to Google Drive');
+      toast('Connected to Google Drive'); $('storeBanner').hidden = true;
       gDirtyAll(); gSync();
     }catch(e){
       $('gConnect').hidden = false;
@@ -684,8 +625,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); gDirty((notes.find(x=>x.id===id)||{}).clientId); },
   };
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
-  const lb=ls.get('lastBackup',0);
-  if(notes.length>=5 && Date.now()-lb>14*864e5){ const b=$('storeBanner'); b.hidden=false; b.textContent=lb?'It has been over two weeks since your last backup. Open History and tap Back up everything.':'Your notes are only on this phone. Open History and tap Back up everything to keep a copy safe.'; }
+  if(notes.length && GD && !gOn){ const b=$('storeBanner'); b.hidden=false; b.textContent='Your notes are only on this phone. Tap here to send them to Google Drive and keep a copy safe.'; b.onclick=()=>{ b.hidden=true; showTab('history'); }; }
   if(selected) $('noteText').value=ls.get('draft:'+selected,'');
   showTab(ls.get('tab','log'));
 
@@ -715,7 +655,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       const p=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY);
       if(p && p.owned){ unlocked=true; ls.set('unlocked',true); $('paywall').hidden=true; $('storeBanner').hidden=true; }
       const price=p && p.pricing && p.pricing.price;
-      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and you can still read and export them.'; }
+      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
     };
     store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Shift Case Notes is unlocked.'); }).productUpdated(refresh);
     store.initialize([Platform.GOOGLE_PLAY]).then(()=>{ refresh(); trialNote(); });

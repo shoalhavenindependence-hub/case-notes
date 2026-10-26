@@ -4,7 +4,6 @@
 The Play Store app shares the web app's screens and logic, with these changes:
 - no web-install bits (manifest, service worker)
 - Google Drive sync signs in with the person's Google account instead of an Apps Script link
-- files are saved through Android's share menu (pick Google Drive, Gmail, Files...)
 - Dictate uses Android's own speech recognition
 - a free trial, then a Google Play purchase to keep adding notes
 """
@@ -34,7 +33,7 @@ sub('<link rel="icon" href="icon-192.png">\n', '')
 sub("  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});\n", '')
 
 # --- Google Drive: Apps Script sync -> sign in with Google (scripts/drive-sync.js) ---
-s = cut(s, '    <div class="pad" id="drivePanel">', '  </section>\n</div>', """    <div class="pad" id="drivePanel">
+s = cut(s, '    <!-- drive panel -->\n', '    <!-- /drive panel -->\n', """    <div class="pad" id="drivePanel">
       <h2>Google Drive</h2>
       <p class="hint" id="driveStatus">Off. Connect your Google account and every note you save, edit or delete is copied to your Google Drive automatically, in a "Shift Case Notes" folder with a spreadsheet for each client. If you have no signal, notes wait and send later.</p>
       <div class="row">
@@ -47,14 +46,13 @@ s = cut(s, '    <div class="pad" id="drivePanel">', '  </section>\n</div>', """ 
 s = cut(s, '  /* ---------- Google Drive sync ---------- */', '  store={', (ROOT / 'android-app' / 'scripts' / 'drive-sync.js').read_text())
 sub(" if(drive){ queueUp(n.id); setTimeout(flushDrive,50); }", ' gDirty(n.clientId);')
 sub(" if(drive){ queueDel(id); setTimeout(flushDrive,50); }", ' gDirty((notes.find(x=>x.id===id)||{}).clientId);')
-sub(" if(drive){ notes.forEach(n=>queueUp(n.id)); flushDrive(); }", ' gDirtyAll();')
 sub("store.saveClients(clients).then(()=>toast('Renamed'));", "store.saveClients(clients).then(()=>toast('Renamed')); gDirty(row.dataset.id);")
 sub("  flushDrive();\n", '  if(typeof gSync==="function") gSync();\n')
 sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toast" hidden></div>
 <div class="paywall" id="gWelcome" hidden role="dialog" aria-modal="true" aria-labelledby="gWelcomeTitle">
   <div class="pad paycard">
     <h2 id="gWelcomeTitle">Save your notes to Google Drive?</h2>
-    <p class="hint">Sign in with your Google account once and every note is copied to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the Clients tab.</p>
+    <p class="hint">Sign in with your Google account once and every note is copied to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the History tab.</p>
     <div class="row">
       <button class="btn primary" id="gWelcomeYes">Connect Google Drive</button>
       <button class="btn small" id="gWelcomeNo">Not now</button>
@@ -62,22 +60,8 @@ sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toa
   </div>
 </div>""")
 
-# --- wording for the share menu ---
-sub('id="exportCsv">Download CSV</button>', 'id="exportCsv">Save or share CSV</button>')
-sub('(email it to yourself, or save it to iCloud or Google Drive)', '(choose Google Drive or Gmail from the share menu)')
-
-# --- saving files through Android's share menu ---
-sub('''  async function saveFile(name, text, type){
-    const file = new File([text], name, {type});''', '''  async function saveFile(name, text, type){
-    const P = window.Capacitor && window.Capacitor.Plugins;
-    if (P && P.Filesystem && P.Share) {
-      try{
-        const res = await P.Filesystem.writeFile({path:name, data:text, directory:'CACHE', encoding:'utf8'});
-        await P.Share.share({title:name, dialogTitle:'Save or send '+name, url:res.uri});
-      }catch(e){ if(!/cancel/i.test(String(e && (e.message||e)))) toast('Could not share the file.'); }
-      return;
-    }
-    const file = new File([text], name, {type});''')
+# --- the reminder banner follows Google sign-in instead of the Apps Script link ---
+sub("if(notes.length && !drive){", "if(notes.length && GD && !gOn){")
 
 # --- dictation: Android's own speech recognition when running as the Play Store app ---
 tidy = re.search(r"    // Rambler-style clean-up.*?\n    function tidy\(t\)\{.*?\n    \}\n", s, re.S).group(0)
@@ -124,7 +108,7 @@ sub('<div class="toast" id="toast" hidden></div>', '''<div class="toast" id="toa
 <div class="paywall" id="paywall" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
   <div class="pad paycard">
     <h2 id="payTitle">Your free month has ended</h2>
-    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and you can still read and export them.</p>
+    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.</p>
     <div class="row">
       <button class="btn primary" id="buyBtn">Unlock</button>
       <button class="btn small" id="restoreBuy">I've already paid</button>
@@ -165,7 +149,7 @@ sub('''  showTab(ls.get('tab','log'));
       const p=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY);
       if(p && p.owned){ unlocked=true; ls.set('unlocked',true); $('paywall').hidden=true; $('storeBanner').hidden=true; }
       const price=p && p.pricing && p.pricing.price;
-      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and you can still read and export them.'; }
+      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
     };
     store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Shift Case Notes is unlocked.'); }).productUpdated(refresh);
     store.initialize([Platform.GOOGLE_PLAY]).then(()=>{ refresh(); trialNote(); });

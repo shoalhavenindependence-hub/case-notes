@@ -137,7 +137,7 @@
       gTok = null;
       await gToken(true);
       gOn = true; ls.set('gOn', true);
-      toast('Connected to Google Drive');
+      toast('Connected to Google Drive'); $('storeBanner').hidden = true;
       gDirtyAll(); gSync();
     }catch(e){
       $('gConnect').hidden = false;
