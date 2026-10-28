@@ -49,7 +49,7 @@ public class AppLockPlugin extends Plugin {
                 }
             );
             BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Shift Case Notes")
+                .setTitle("Case Note Keeper")
                 .setSubtitle(reason)
                 .setAllowedAuthenticators(AUTHENTICATORS)
                 .build();

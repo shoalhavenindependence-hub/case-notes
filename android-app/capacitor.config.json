@@ -1,6 +1,6 @@
 {
   "appId": "com.shoalhavenindependence.casenotes",
-  "appName": "Shift Case Notes",
+  "appName": "Case Note Keeper",
   "webDir": "www",
   "android": {
     "allowMixedContent": false

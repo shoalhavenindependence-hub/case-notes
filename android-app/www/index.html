@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Case Notes">
-<title>Shift Case Notes</title>
+<title>Case Note Keeper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
@@ -100,7 +100,7 @@ html.locked .wrap{visibility:hidden}
 
 <div class="wrap">
   <header>
-    <h1>Shift Case Notes</h1>
+    <h1>Case Note Keeper</h1>
     <span class="clock" id="clock"></span>
   </header>
   <nav role="tablist">
@@ -204,7 +204,7 @@ html.locked .wrap{visibility:hidden}
 <div class="paywall" id="paywall" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
   <div class="pad paycard">
     <h2 id="payTitle">Your free month has ended</h2>
-    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.</p>
+    <p class="hint" id="payText">Unlock Case Note Keeper to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.</p>
     <div class="row">
       <button class="btn primary" id="buyBtn">Unlock</button>
       <button class="btn small" id="restoreBuy">I've already paid</button>
@@ -225,7 +225,7 @@ html.locked .wrap{visibility:hidden}
 <div class="lock" id="lockScreen" hidden role="dialog" aria-modal="true" aria-labelledby="lockTitle">
   <div class="lockbox">
     <div class="lockicon" aria-hidden="true">🔒</div>
-    <h2 id="lockTitle">Shift Case Notes is locked</h2>
+    <h2 id="lockTitle">Case Note Keeper is locked</h2>
     <p class="hint">Use your fingerprint or your phone’s PIN to open your notes.</p>
     <button class="btn primary" id="unlockBtn">Unlock</button>
     <button class="btn small" id="lockReset">Fingerprint not working? Set it up again</button>
@@ -463,7 +463,7 @@ html.locked .wrap{visibility:hidden}
       try{
         const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
         let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
-        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Shift Case Notes in your phone settings to use Dictate.'); return; }
+        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
       base=$('noteText').value; cur=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
@@ -499,7 +499,7 @@ html.locked .wrap{visibility:hidden}
         $('noteText').dispatchEvent(new Event('input'));
       };
       rec.onerror=ev=>{
-        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. Allow the microphone for Shift Case Notes in your phone settings.');
+        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. Allow the microphone for Case Note Keeper in your phone settings.');
         else if(ev.error==='network') stopAll('Dictation needs an internet connection. Use the keyboard microphone instead.');
         else if(ev.error==='audio-capture') stopAll('No microphone found.');
         else fails++;
@@ -526,13 +526,13 @@ html.locked .wrap{visibility:hidden}
   clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;
 
   /* ---------- Google Drive: the person's own account ---------- */
-  // After a one-time Google sign-in, every change is copied to a "Shift Case Notes"
+  // After a one-time Google sign-in, every change is copied to a "Case Note Keeper"
   // folder in their Drive: one spreadsheet per client plus "All case notes".
   // Each changed client's sheet is rewritten from the notes on this phone.
   const GD = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GoogleDrive;
   const DRIVE = 'https://www.googleapis.com/drive/v3/files', SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
   const FOLDER_MIME = 'application/vnd.google-apps.folder', SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
-  const FOLDER_NAME = 'Shift Case Notes';
+  const FOLDER_NAME = 'Case Note Keeper';
   const CLIENT_COLS = {head:['Date','Time','Case note','Last edited'], widths:[100,80,520,140], wrap:2};
   const ALL_COLS = {head:['Date','Time','Client','Case note','Last edited'], widths:[100,80,140,520,140], wrap:3};
   const gDate = new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -719,8 +719,8 @@ html.locked .wrap{visibility:hidden}
     async enroll(){
       if(NativeLock){ await NativeLock.verify({reason:'Confirm it’s you to turn on the lock'}); return; }
       const cred = await navigator.credentials.create({publicKey:{
-        challenge: rand(32), rp:{name:'Shift Case Notes'},
-        user:{id: rand(16), name:'Shift Case Notes lock', displayName:'Shift Case Notes lock'},
+        challenge: rand(32), rp:{name:'Case Note Keeper'},
+        user:{id: rand(16), name:'Case Note Keeper lock', displayName:'Case Note Keeper lock'},
         pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
         authenticatorSelection:{authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged'},
         timeout:60000 }});
@@ -793,7 +793,7 @@ html.locked .wrap{visibility:hidden}
     const b=$('storeBanner');
     if(unlocked || !window.CdvPurchase) return;
     const d=daysLeft();
-    if(d===0){ b.hidden=false; b.textContent='Your free month has ended. Tap here to unlock Shift Case Notes.'; b.onclick=showPaywall; }
+    if(d===0){ b.hidden=false; b.textContent='Your free month has ended. Tap here to unlock Case Note Keeper.'; b.onclick=showPaywall; }
     else if(d<=5){ b.hidden=false; b.textContent=d+(d===1?' day':' days')+' left in your free month. Tap here to unlock.'; b.onclick=showPaywall; }
   }
   document.addEventListener('deviceready', ()=>{
@@ -804,9 +804,9 @@ html.locked .wrap{visibility:hidden}
       const p=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY);
       if(p && p.owned){ unlocked=true; ls.set('unlocked',true); $('paywall').hidden=true; $('storeBanner').hidden=true; }
       const price=p && p.pricing && p.pricing.price;
-      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
+      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Case Note Keeper for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
     };
-    store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Shift Case Notes is unlocked.'); }).productUpdated(refresh);
+    store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Case Note Keeper is unlocked.'); }).productUpdated(refresh);
     store.initialize([Platform.GOOGLE_PLAY]).then(()=>{ refresh(); trialNote(); });
     $('buyBtn').addEventListener('click',()=>{
       const offer=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY)?.getOffer();

@@ -1,11 +1,11 @@
   /* ---------- Google Drive: the person's own account ---------- */
-  // After a one-time Google sign-in, every change is copied to a "Shift Case Notes"
+  // After a one-time Google sign-in, every change is copied to a "Case Note Keeper"
   // folder in their Drive: one spreadsheet per client plus "All case notes".
   // Each changed client's sheet is rewritten from the notes on this phone.
   const GD = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GoogleDrive;
   const DRIVE = 'https://www.googleapis.com/drive/v3/files', SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
   const FOLDER_MIME = 'application/vnd.google-apps.folder', SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
-  const FOLDER_NAME = 'Shift Case Notes';
+  const FOLDER_NAME = 'Case Note Keeper';
   const CLIENT_COLS = {head:['Date','Time','Case note','Last edited'], widths:[100,80,520,140], wrap:2};
   const ALL_COLS = {head:['Date','Time','Client','Case note','Last edited'], widths:[100,80,140,520,140], wrap:3};
   const gDate = new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'2-digit',year:'numeric'});

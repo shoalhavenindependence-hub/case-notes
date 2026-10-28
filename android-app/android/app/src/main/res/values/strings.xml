@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Shift Case Notes</string>
-    <string name="title_activity_main">Shift Case Notes</string>
+    <string name="app_name">Case Note Keeper</string>
+    <string name="title_activity_main">Case Note Keeper</string>
     <string name="package_name">com.shoalhavenindependence.casenotes</string>
     <string name="custom_url_scheme">com.shoalhavenindependence.casenotes</string>
 </resources>

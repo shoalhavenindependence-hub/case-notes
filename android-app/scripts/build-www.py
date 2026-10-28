@@ -93,7 +93,7 @@ native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform 
       try{
         const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
         let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
-        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Shift Case Notes in your phone settings to use Dictate.'); return; }
+        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
       base=$('noteText').value; cur=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
@@ -103,14 +103,14 @@ native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform 
 sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n  if (SR) {",
     "  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n" + native + "if (SR) {")
 sub('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.',
-    'Microphone is blocked. Allow the microphone for Shift Case Notes in your phone settings.')
+    'Microphone is blocked. Allow the microphone for Case Note Keeper in your phone settings.')
 
 # --- free trial, then a Google Play purchase ---
 sub('<div class="toast" id="toast" hidden></div>', '''<div class="toast" id="toast" hidden></div>
 <div class="paywall" id="paywall" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
   <div class="pad paycard">
     <h2 id="payTitle">Your free month has ended</h2>
-    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.</p>
+    <p class="hint" id="payText">Unlock Case Note Keeper to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.</p>
     <div class="row">
       <button class="btn primary" id="buyBtn">Unlock</button>
       <button class="btn small" id="restoreBuy">I've already paid</button>
@@ -140,7 +140,7 @@ sub('''  showTab(ls.get('tab','log'));
     const b=$('storeBanner');
     if(unlocked || !window.CdvPurchase) return;
     const d=daysLeft();
-    if(d===0){ b.hidden=false; b.textContent='Your free month has ended. Tap here to unlock Shift Case Notes.'; b.onclick=showPaywall; }
+    if(d===0){ b.hidden=false; b.textContent='Your free month has ended. Tap here to unlock Case Note Keeper.'; b.onclick=showPaywall; }
     else if(d<=5){ b.hidden=false; b.textContent=d+(d===1?' day':' days')+' left in your free month. Tap here to unlock.'; b.onclick=showPaywall; }
   }
   document.addEventListener('deviceready', ()=>{
@@ -151,9 +151,9 @@ sub('''  showTab(ls.get('tab','log'));
       const p=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY);
       if(p && p.owned){ unlocked=true; ls.set('unlocked',true); $('paywall').hidden=true; $('storeBanner').hidden=true; }
       const price=p && p.pricing && p.pricing.price;
-      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
+      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Case Note Keeper for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
     };
-    store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Shift Case Notes is unlocked.'); }).productUpdated(refresh);
+    store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Case Note Keeper is unlocked.'); }).productUpdated(refresh);
     store.initialize([Platform.GOOGLE_PLAY]).then(()=>{ refresh(); trialNote(); });
     $('buyBtn').addEventListener('click',()=>{
       const offer=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY)?.getOffer();

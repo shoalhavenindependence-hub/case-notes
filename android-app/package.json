@@ -2,7 +2,7 @@
   "name": "shift-case-notes-android",
   "version": "1.0.0",
   "private": true,
-  "description": "Play Store build of Shift Case Notes",
+  "description": "Play Store build of Case Note Keeper",
   "scripts": {
     "sync": "cap sync android"
   },
