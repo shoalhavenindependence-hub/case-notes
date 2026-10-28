@@ -1,6 +1,6 @@
 {
-  "name": "Shift Case Notes",
-  "short_name": "Case Notes",
+  "name": "Case Note Keeper",
+  "short_name": "Case Note Keeper",
   "description": "Speak a case note for each client at the end of a shift. Every note is stamped with the date and time.",
   "start_url": "./",
   "scope": "./",
