@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<title>Shift Case Notes</title>
+<title>Case Note Keeper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
@@ -100,7 +100,7 @@ html.locked .wrap{visibility:hidden}
 
 <div class="wrap">
   <header>
-    <h1>Shift Case Notes</h1>
+    <h1>Case Note Keeper</h1>
     <span class="clock" id="clock"></span>
   </header>
   <nav role="tablist">
@@ -209,7 +209,7 @@ html.locked .wrap{visibility:hidden}
 <div class="lock" id="lockScreen" hidden role="dialog" aria-modal="true" aria-labelledby="lockTitle">
   <div class="lockbox">
     <div class="lockicon" aria-hidden="true">🔒</div>
-    <h2 id="lockTitle">Shift Case Notes is locked</h2>
+    <h2 id="lockTitle">Case Note Keeper is locked</h2>
     <p class="hint">Use your fingerprint or your phone’s PIN to open your notes.</p>
     <button class="btn primary" id="unlockBtn">Unlock</button>
     <button class="btn small" id="lockReset">Fingerprint not working? Set it up again</button>
@@ -556,8 +556,8 @@ html.locked .wrap{visibility:hidden}
     async enroll(){
       if(NativeLock){ await NativeLock.verify({reason:'Confirm it’s you to turn on the lock'}); return; }
       const cred = await navigator.credentials.create({publicKey:{
-        challenge: rand(32), rp:{name:'Shift Case Notes'},
-        user:{id: rand(16), name:'Shift Case Notes lock', displayName:'Shift Case Notes lock'},
+        challenge: rand(32), rp:{name:'Case Note Keeper'},
+        user:{id: rand(16), name:'Case Note Keeper lock', displayName:'Case Note Keeper lock'},
         pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
         authenticatorSelection:{authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged'},
         timeout:60000 }});

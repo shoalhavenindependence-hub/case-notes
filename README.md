@@ -1,4 +1,4 @@
-# Shift Case Notes
+# Case Note Keeper
 
 Speak a case note for each client at the end of a shift. Every note is stamped with the date and time.
 
