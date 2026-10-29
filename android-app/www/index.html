@@ -348,7 +348,7 @@ html.locked .wrap{visibility:hidden}
         const t=part.trim(); if(!t) continue;
         await sayOne(t);
         if(id!==sayId) return;
-        await pause(/[.!?]$/.test(t) ? 450 : 200);
+        await pause(/[.!?]$/.test(t) ? 250 : 120);
       }
     }
     async function allowed(){
@@ -418,6 +418,8 @@ html.locked .wrap{visibility:hidden}
     const NO = /^(no|nope|nah|not really|nothing|not sure|dunno|idk|i don'?t know)\b/;
     const LISTEN = ['I’m listening. Take your time.', 'That sounds hard. What else is on your mind?', 'Thanks for sharing that. How are you feeling now?', 'It’s okay to let it all out here. Go on.'];
     // Claude replies come through the Debrief AI Google script (debrief-ai/Code.gs). Leave blank to use the simple on-phone replies.
+    // Carla's Google AI voice (set up in debrief-ai/Code.gs). Off: the phone's own voice answers straight away.
+    const CLOUD_VOICE = false;
     const AI_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
     const NOTE_AI = 'Carla is an AI, not a person. Private and not saved: what you say is sent securely to Claude AI for a reply and is not kept in the app.';
     let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
@@ -428,11 +430,11 @@ html.locked .wrap{visibility:hidden}
       if(last && last.role==='user') last.content += '\n\n'+raw; else history.push({role:'user', content:raw});
       busy=true; const t=add('…', 'bot', 'typing');
       try{
-        const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({device:deviceId, messages:history, voice:Talk.on})});
+        const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({device:deviceId, messages:history, voice:CLOUD_VOICE && Talk.on})});
         const r = await res.json();
         if(!r.text) throw new Error(r.error||'empty');
         history.push({role:'assistant', content:r.content});
-        t.classList.remove('typing'); t.innerHTML=linkify(r.text); log().scrollTop=log().scrollHeight; Talk.heard(r.text, r.audio);
+        t.classList.remove('typing'); t.innerHTML=linkify(r.text); log().scrollTop=log().scrollHeight; Talk.heard(r.text, CLOUD_VOICE ? r.audio : null);
       }catch(e){
         t.remove();
         const why = e && e.message==='limit' ? 'You’ve reached this month’s Debrief limit, so here’s a simpler reply. ' : 'I couldn’t reach the AI just now (check your signal), so here’s a simpler reply. ';
@@ -493,7 +495,7 @@ html.locked .wrap{visibility:hidden}
     $('chatBreathe').addEventListener('click', ()=>{ say('Let’s slow things down. Follow the circle: in for 4, hold for 4, out for 4, hold for 4. Three rounds.'); setTimeout(breathe, 900); });
     $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; $('chatText').value=''; userSays(v); });
     $('chatText').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); $('chatForm').requestSubmit(); } });
-    Talk.init(userSays); Talk.useVoice(voiceFor);
+    Talk.init(userSays); if(CLOUD_VOICE) Talk.useVoice(voiceFor);
     return {open, close};
   })();
 
