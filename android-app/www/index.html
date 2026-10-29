@@ -378,7 +378,7 @@ html.locked .wrap{visibility:hidden}
     const NO = /^(no|nope|nah|not really|nothing|not sure|dunno|idk|i don'?t know)\b/;
     const LISTEN = ['I’m listening. Take your time.', 'That sounds hard. What else is on your mind?', 'Thanks for sharing that. How are you feeling now?', 'It’s okay to let it all out here. Go on.'];
     // Claude replies come through the Debrief AI Google script (debrief-ai/Code.gs). Leave blank to use the simple on-phone replies.
-    const AI_URL = '';
+    const AI_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
     const NOTE_AI = 'Private and not saved. What you say is sent securely to Claude AI for a reply and is not kept in the app.';
     let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
     const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
