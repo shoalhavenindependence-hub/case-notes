@@ -326,6 +326,11 @@ html.locked .wrap{visibility:hidden}
         u.onend=res; u.onerror=res; speechSynthesis.cancel(); speechSynthesis.speak(u);
       });
     }
+    async function allowed(){
+      if(!NSR) return true;
+      try{ let p=await NSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await NSR.requestPermissions(); if(p.speechRecognition==='granted') return true; }catch{}
+      toast('Allow the microphone for Case Note Keeper in your phone settings to talk to Carla.'); return false;
+    }
     function hush(){ try{ if(NTTS) NTTS.stop(); else if(window.speechSynthesis) speechSynthesis.cancel(); }catch{} }
     async function listenOnce(){
       if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }
@@ -342,7 +347,7 @@ html.locked .wrap{visibility:hidden}
       status('Listening… speak now');
       let text='';
       try{ text = (await listenOnce()).trim(); }
-      catch(e){ setOn(false); toast(e && e.message==='blocked' ? 'The microphone is blocked. Allow it in your phone settings to talk to Debrief.' : 'Could not hear you. Tap Talk to try again, or type instead.'); return; }
+      catch(e){ setOn(false); toast(e && e.message==='blocked' ? 'The microphone is blocked. Allow it in your phone settings to talk to Carla.' : 'Could not hear you. Tap Talk to try again, or type instead.'); return; }
       if(!on) return;
       if(!text){ if(++quiet>=2){ setOn(false); status('Paused. Tap Talk when you’re ready.'); return; } return listen(); }
       quiet=0; status(''); onText && onText(text.charAt(0).toUpperCase()+text.slice(1));
@@ -352,10 +357,11 @@ html.locked .wrap{visibility:hidden}
       init(cb){ onText=cb; const b=btn(); if(!canHear) return; b.hidden=false;
         b.addEventListener('click', async()=>{
           if(on){ setOn(false); hush(); try{ if(NSR) NSR.stop(); else if(rec) rec.abort(); }catch{} return; }
-          if(NSR){ try{ let p=await NSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await NSR.requestPermissions(); if(p.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to talk to Debrief.'); return; } }catch{} }
-          setOn(true); listen();
+          if(await allowed()){ setOn(true); listen(); }
         });
       },
+      // Voice mode from the start: the next reply is read out, then it listens.
+      async start(){ if(!canHear || !canSpeak) return false; if(on) return true; if(await allowed()){ setOn(true); return true; } return false; },
       // Called with each new reply: read it out, then listen for the answer.
       async heard(text){ if(!on) return; status('Speaking…'); await speak(text.replace(/•/g,'')); if(on) listen(); },
       stop(){ setOn(false); hush(); try{ if(NSR) NSR.stop(); else if(rec) rec.abort(); }catch{} }
@@ -426,12 +432,14 @@ html.locked .wrap{visibility:hidden}
       const step=()=>{ const [txt,big]=steps[i%4]; ph.textContent=txt+(rounds<3?'':''); c.classList.toggle('big',big); i++; if(i%4===0) rounds++; if(rounds>=3){ stopBreathing(); setTimeout(()=>{ ph.textContent='Well done.'; c.classList.remove('big'); say('How are you feeling now?'); },4000); } };
       requestAnimationFrame(step); breathing=setInterval(step,4000);
     }
-    function open(){
+    async function open(){
       stage=0; told=false; incidentTold=false; listenAt=0; history=[]; stopBreathing(); log().innerHTML=''; $('chatText').value='';
       if(AI_URL) $('debriefNote').textContent=NOTE_AI;
       $('debrief').hidden=false;
-      say('Hi, I’m Carla, your AI debrief companion.\n\nThis is a private space to offload after a hard session. Nothing is saved, and there’s no need to use names. Tell me what happened, or tap Talk and just speak.');
-      setTimeout(()=>$('chatText').focus(), 300);
+      const voice = await Talk.start();
+      say('Hi, I’m Carla, your AI debrief companion.\n\nThis is a private space to offload after a hard session. Nothing is saved, and there’s no need to use names. '
+        + (voice ? 'Just tell me what happened. I’m listening. Tap Stop if you’d rather type.' : 'Tell me what happened, or tap Talk and just speak.'));
+      if(!voice) setTimeout(()=>$('chatText').focus(), 300);
     }
     function close(){ Talk.stop(); stopBreathing(); history=[]; log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
     function userSays(v){
