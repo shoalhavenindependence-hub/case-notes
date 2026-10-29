@@ -301,21 +301,37 @@ html.locked .wrap{visibility:hidden}
     const status = m => { const el=$('chatStatus'); if(el) el.textContent = m||''; };
     const btn = () => $('chatTalk');
     function setOn(v){ on=v; quiet=0; const b=btn(); b.classList.toggle('on',v); b.textContent = v ? '■ Stop' : '🎤 Talk'; if(!v){ status(''); } }
-    function speak(text){
+    // Carla speaks slowly and softly, one sentence at a time with a short pause between, like a guided relaxation.
+    let sayId=0;
+    const pause = ms => new Promise(r=>setTimeout(r, ms));
+    const calmVoice = () => { const vs=speechSynthesis.getVoices(), en=vs.filter(x=>/^en[-_](AU|GB)/i.test(x.lang));
+      return en.find(x=>/natural|enhanced|premium/i.test(x.name)) || en.find(x=>/female|karen|catherine|serena|kate/i.test(x.name)) || vs.find(x=>x.lang==='en-AU') || vs.find(x=>/^en/.test(x.lang)); };
+    function sayOne(text){
       return new Promise(res=>{
-        if(!canSpeak) return res();
-        if(NTTS){ NTTS.speak({text, lang:'en-AU', rate:0.95, pitch:1.0}).then(res, res); return; }
-        const u=new SpeechSynthesisUtterance(text); u.lang='en-AU'; u.rate=0.95;
-        const v=speechSynthesis.getVoices().find(x=>x.lang==='en-AU') || speechSynthesis.getVoices().find(x=>/^en/.test(x.lang)); if(v) u.voice=v;
-        u.onend=res; u.onerror=res; speechSynthesis.cancel(); speechSynthesis.speak(u);
+        if(NTTS){ NTTS.speak({text, lang:'en-AU', rate:0.82, pitch:0.95}).then(res, res); return; }
+        const u=new SpeechSynthesisUtterance(text); u.lang='en-AU'; u.rate=0.82; u.pitch=0.95;
+        const v=calmVoice(); if(v) u.voice=v;
+        u.onend=res; u.onerror=res; speechSynthesis.speak(u);
       });
+    }
+    async function speak(text){
+      if(!canSpeak) return;
+      const id=++sayId; if(!NTTS) speechSynthesis.cancel();
+      const parts = String(text).replace(/\s+/g,' ').match(/[^.!?]+[.!?]*/g) || [];
+      for(const part of parts){
+        if(id!==sayId) return;
+        const t=part.trim(); if(!t) continue;
+        await sayOne(t);
+        if(id!==sayId) return;
+        await pause(/[.!?]$/.test(t) ? 450 : 200);
+      }
     }
     async function allowed(){
       if(!NSR) return true;
       try{ let p=await NSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await NSR.requestPermissions(); if(p.speechRecognition==='granted') return true; }catch{}
       toast('Allow the microphone for Case Note Keeper in your phone settings to talk to Carla.'); return false;
     }
-    function hush(){ try{ if(NTTS) NTTS.stop(); else if(window.speechSynthesis) speechSynthesis.cancel(); }catch{} }
+    function hush(){ sayId++; try{ if(NTTS) NTTS.stop(); else if(window.speechSynthesis) speechSynthesis.cancel(); }catch{} }
     async function listenOnce(){
       if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }
       return new Promise((res,rej)=>{
