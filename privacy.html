@@ -16,12 +16,12 @@ p,li{color:var(--ink)}.muted{color:var(--muted)}a{color:var(--accent)}
 <body>
 <main>
 <h1>Privacy Policy</h1>
-<p class="muted">Case Note Keeper · Last updated 28 October 2026</p>
+<p class="muted">Case Note Keeper · Last updated 29 October 2026</p>
 
 <p>Case Note Keeper is a no-nonsense case note app for support workers, carers and anyone who keeps notes about the people they work with. This policy explains what happens to the information you put into it.</p>
 
 <h2>Your notes stay with you</h2>
-<p>Client names and case notes you enter are stored on your device, and in your own Google Drive if you turn on Google Drive sync. We do not run any servers that receive, store or read your notes, and we have no way to see them. If you uninstall the app or clear its data, the notes on your phone are deleted, but any copy already sent to your Google Drive stays there.</p>
+<p>Client names and case notes you enter are stored on your device, and in your own Google Drive if you turn on Google Drive sync. Your case notes never go to any server of ours, and we have no way to see them. If you uninstall the app or clear its data, the notes on your phone are deleted, but any copy already sent to your Google Drive stays there.</p>
 
 <h2>Google Drive sync (optional)</h2>
 <p>If you tap <b>Connect Google Drive</b>, you sign in with your Google account and allow the app to create and update its own files in your Google Drive. The app then copies your clients and case notes, with their dates and times, into a "Case Note Keeper" folder there, with a spreadsheet for each client. Your notes travel directly from your phone to Google over an encrypted connection and are never sent to us.</p>
@@ -29,8 +29,11 @@ p,li{color:var(--ink)}.muted{color:var(--muted)}a{color:var(--accent)}
 <p>Case Note Keeper' use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 <p>You can stop sync at any time with <b>Disconnect</b> in the Clients tab, and remove the app's access from your Google Account at <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a>. Files already in your Drive stay there until you delete them.</p>
 
+<h2>Debrief chat</h2>
+<p>The Debrief button opens an optional chat for offloading after a hard session. Debrief chats are not saved: closing the chat with <b>Finish</b> wipes it from the screen and nothing is kept in the app. To get a reply, what you type or say in Debrief is sent over an encrypted connection to a small Google Apps Script we run, which passes it to Anthropic's Claude AI and returns the answer. Our script does not store your messages; it keeps only a count of how many messages each phone has sent this month, using a random ID, so that use can be limited. Anthropic processes the messages to produce the reply, does not use them to train its models, and deletes them after a limited period under its <a href="https://www.anthropic.com/legal/privacy">privacy policy</a>. Please do not include clients' names or identifying details in Debrief. Debrief is not counselling or a crisis service; if you or anyone else is at risk, call 000 or Lifeline on 13 11 14.</p>
+
 <h2>Dictation and the microphone</h2>
-<p>The app asks to use your microphone only when you tap <b>Dictate</b>. Speech is turned into text by your phone's built-in speech recognition service (usually provided by Google). That service may process the audio under its own privacy policy. The app does not record or keep any audio.</p>
+<p>The app asks to use your microphone only when you tap <b>Dictate</b>, or <b>Talk</b> in Debrief. Debrief replies can be read aloud by your phone's built-in voice. Speech is turned into text by your phone's built-in speech recognition service (usually provided by Google). That service may process the audio under its own privacy policy. The app does not record or keep any audio.</p>
 
 <h2>Purchases</h2>
 <p>The app is free for 30 days, then a one-off purchase unlocks it. Payments are handled by Google Play. We receive confirmation that a purchase was made, but never your card or payment details.</p>
@@ -39,6 +42,7 @@ p,li{color:var(--ink)}.muted{color:var(--muted)}a{color:var(--accent)}
 <ul>
 <li>No accounts with us (Google sign-in is only used to reach your own Google Drive)</li>
 <li>No analytics, tracking or advertising</li>
+<li>No copies of your case notes or Debrief chats</li>
 <li>No location, contacts or other personal data</li>
 </ul>
 
