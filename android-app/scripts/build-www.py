@@ -118,7 +118,7 @@ sub('<div class="toast" id="toast" hidden></div>', '''<div class="toast" id="toa
     <button class="btn small" id="payLater">Not now</button>
   </div>
 </div>''')
-sub('</style>', '''.paywall{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--ink) 55%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+sub('</style>', '''.paywall{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--card-ink) 55%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 .paycard{max-width:560px;width:100%}
 .trial{font-size:.85rem;color:var(--muted)}
 </style>''')
