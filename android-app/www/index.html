@@ -318,7 +318,16 @@ html.locked .wrap{visibility:hidden}
     const btn = () => $('chatTalk');
     function setOn(v){ on=v; quiet=0; const b=btn(); b.classList.toggle('on',v); b.textContent = v ? '■ Stop' : '🎤 Talk'; if(!v){ status(''); } }
     // Carla speaks slowly and softly, one sentence at a time with a short pause between, like a guided relaxation.
-    let sayId=0;
+    let sayId=0, cloud=null, clip=null;
+    // Carla's natural voice: an MP3 made by the Debrief script. Resolves false if it can't play, so the phone's voice takes over.
+    function playClip(b64, id){
+      return new Promise(res=>{
+        if(!b64 || id!==sayId) return res(false);
+        const a=new Audio('data:audio/mpeg;base64,'+b64); clip=a;
+        a.onended=()=>res(true); a.onerror=()=>res(false);
+        a.play().catch(()=>res(false));
+      });
+    }
     const pause = ms => new Promise(r=>setTimeout(r, ms));
     const calmVoice = () => { const vs=speechSynthesis.getVoices(), en=vs.filter(x=>/^en[-_](AU|GB)/i.test(x.lang));
       return en.find(x=>/natural|enhanced|premium/i.test(x.name)) || en.find(x=>/female|karen|catherine|serena|kate/i.test(x.name)) || vs.find(x=>x.lang==='en-AU') || vs.find(x=>/^en/.test(x.lang)); };
@@ -347,7 +356,7 @@ html.locked .wrap{visibility:hidden}
       try{ let p=await NSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await NSR.requestPermissions(); if(p.speechRecognition==='granted') return true; }catch{}
       toast('Allow the microphone for Case Note Keeper in your phone settings to talk to Carla.'); return false;
     }
-    function hush(){ sayId++; try{ if(NTTS) NTTS.stop(); else if(window.speechSynthesis) speechSynthesis.cancel(); }catch{} }
+    function hush(){ sayId++; try{ if(clip){ clip.pause(); clip=null; } }catch{} try{ if(NTTS) NTTS.stop(); else if(window.speechSynthesis) speechSynthesis.cancel(); }catch{} }
     async function listenOnce(){
       if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }
       return new Promise((res,rej)=>{
@@ -379,7 +388,16 @@ html.locked .wrap{visibility:hidden}
       // Voice mode from the start: the next reply is read out, then it listens.
       async start(){ if(!canHear || !canSpeak) return false; if(on) return true; if(await allowed()){ setOn(true); return true; } return false; },
       // Called with each new reply: read it out, then listen for the answer.
-      async heard(text){ if(!on) return; status('Speaking…'); await speak(text.replace(/•/g,'')); if(on) listen(); },
+      async heard(text, audio){
+        if(!on) return; status('Speaking…');
+        const plain=text.replace(/•/g,''), id=++sayId;
+        let a=audio; if(!a && cloud){ try{ a=await cloud(plain); }catch{ a=null; } }
+        if(!on || id!==sayId) return;
+        if(!(await playClip(a, id))) await speak(plain);
+        if(on) listen();
+      },
+      get on(){ return on; },
+      useVoice(fn){ cloud=fn; },
       stop(){ setOn(false); hush(); try{ if(NSR) NSR.stop(); else if(rec) rec.abort(); }catch{} }
     };
   })();
@@ -410,11 +428,11 @@ html.locked .wrap{visibility:hidden}
       if(last && last.role==='user') last.content += '\n\n'+raw; else history.push({role:'user', content:raw});
       busy=true; const t=add('…', 'bot', 'typing');
       try{
-        const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({device:deviceId, messages:history})});
+        const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({device:deviceId, messages:history, voice:Talk.on})});
         const r = await res.json();
         if(!r.text) throw new Error(r.error||'empty');
         history.push({role:'assistant', content:r.content});
-        t.classList.remove('typing'); t.innerHTML=linkify(r.text); log().scrollTop=log().scrollHeight; Talk.heard(r.text);
+        t.classList.remove('typing'); t.innerHTML=linkify(r.text); log().scrollTop=log().scrollHeight; Talk.heard(r.text, r.audio);
       }catch(e){
         t.remove();
         const why = e && e.message==='limit' ? 'You’ve reached this month’s Debrief limit, so here’s a simpler reply. ' : 'I couldn’t reach the AI just now (check your signal), so here’s a simpler reply. ';
@@ -457,6 +475,12 @@ html.locked .wrap{visibility:hidden}
         + (voice ? 'Just tell me what happened. I’m listening. Tap Stop if you’d rather type.' : 'Tell me what happened, or tap Talk and just speak.'));
       if(!voice) setTimeout(()=>$('chatText').focus(), 300);
     }
+    // Greetings and on-phone replies get Carla's natural voice from the script too, when it's set up.
+    async function voiceFor(text){
+      if(!AI_URL) return null;
+      const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({action:'speak', device:deviceId, text})});
+      const r = await res.json(); return r.audio || null;
+    }
     function close(){ Talk.stop(); stopBreathing(); history=[]; log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
     function userSays(v){
       add(v,'me');
@@ -469,7 +493,7 @@ html.locked .wrap{visibility:hidden}
     $('chatBreathe').addEventListener('click', ()=>{ say('Let’s slow things down. Follow the circle: in for 4, hold for 4, out for 4, hold for 4. Three rounds.'); setTimeout(breathe, 900); });
     $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; $('chatText').value=''; userSays(v); });
     $('chatText').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); $('chatForm').requestSubmit(); } });
-    Talk.init(userSays);
+    Talk.init(userSays); Talk.useVoice(voiceFor);
     return {open, close};
   })();
 
