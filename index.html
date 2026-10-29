@@ -88,6 +88,25 @@ button.client-row{width:100%;font:inherit;color:var(--ink);text-align:left;curso
 .account .label{font-size:.75rem;color:var(--muted)}
 .account .name{font-weight:700}
 .account .email{font-size:.9rem;color:var(--muted);overflow-wrap:anywhere}
+.chat{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;justify-content:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.chatbox{width:100%;max-width:640px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.chat-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.chat-head h2{margin:0;font-family:var(--display)}
+.chat-head .btn{flex:none}
+.chat-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0}
+.msg{max-width:85%;padding:10px 14px;border-radius:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;--ink:var(--card-ink);--muted:var(--card-muted);color:var(--ink)}
+.msg.bot{align-self:flex-start;background:var(--surface);border-bottom-left-radius:4px}
+.msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px}
+.msg.alert{background:var(--warn-soft);color:var(--warn);font-weight:700}
+.msg a{color:inherit;font-weight:700}
+.msg.typing{opacity:.7;font-style:italic}
+.chat-tools{display:flex;gap:8px;flex-wrap:wrap}
+.chat-input{display:flex;gap:8px;align-items:flex-end}
+.chat-input textarea{flex:1;resize:none;min-height:48px;max-height:140px}
+.chat-input .btn{flex:none}
+.breathe{width:110px;height:110px;margin:6px auto;border-radius:50%;background:var(--accent-soft);border:3px solid var(--accent);transform:scale(.6);transition:transform 4s ease-in-out}
+.breathe.big{transform:scale(1)}
+.breathe-wrap{text-align:center}
 .lock{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px}
 .lockbox{max-width:360px;width:100%;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:stretch}
 html.locked .wrap{visibility:hidden}
@@ -154,7 +173,6 @@ html.locked .wrap{visibility:hidden}
     <div class="debrief">
       <p>Was this a difficult session? Want to debrief?</p>
       <button class="btn primary" id="debriefBtn">Debrief</button>
-      <div id="debriefPanel" class="hint" hidden>Debrief is coming soon.</div>
     </div>
   </section>
 
@@ -218,6 +236,23 @@ html.locked .wrap{visibility:hidden}
   </section>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div class="chat" id="debrief" hidden role="dialog" aria-modal="true" aria-labelledby="debriefTitle">
+  <div class="chatbox">
+    <div class="chat-head">
+      <div><h2 id="debriefTitle">Debrief</h2><p class="hint">Private. Nothing you type here leaves your phone or is saved.</p></div>
+      <button class="btn small" id="debriefDone">Finish</button>
+    </div>
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="chat-tools">
+      <button class="btn small" id="chatBreathe">Breathing exercise</button>
+      <button class="btn small" id="chatHelp">Support lines</button>
+    </div>
+    <form class="chat-input" id="chatForm">
+      <textarea id="chatText" rows="2" placeholder="Type or tap the keyboard microphone and talk…"></textarea>
+      <button class="btn primary" id="chatSend" type="submit">Send</button>
+    </form>
+  </div>
+</div>
 <div class="lock" id="lockScreen" hidden role="dialog" aria-modal="true" aria-labelledby="lockTitle">
   <div class="lockbox">
     <div class="lockicon" aria-hidden="true">🔒</div>
@@ -252,7 +287,64 @@ html.locked .wrap{visibility:hidden}
 
   /* ---------- tabs ---------- */
   document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.tab==='clients') viewClient=null; showTab(b.dataset.tab); }));
-  $('debriefBtn').addEventListener('click', ()=>{ $('debriefPanel').hidden = !$('debriefPanel').hidden; });
+  /* ---------- Debrief: a private listener that runs only on this phone ---------- */
+  // Nothing typed here is stored or sent anywhere; closing the chat wipes it.
+  const Debrief = (()=>{
+    const LINES = '<a href="tel:131114">Lifeline 13 11 14</a> (24 hours)\n<a href="tel:1300224636">Beyond Blue 1300 22 4636</a>\n<a href="tel:000">000</a> if anyone is in danger';
+    const FEELINGS = [
+      [/\b(angry|furious|pissed|livid|mad|rage)\b/, 'angry'], [/\b(frustrat\w*|annoy\w*|irritat\w*)\b/, 'frustrated'],
+      [/\b(sad|upset|cry|cried|crying|teary|heartbroken|down)\b/, 'upset'], [/\b(scared|afraid|frightened|terrified|unsafe|threatened)\b/, 'shaken'],
+      [/\b(anxious|worried|worry|nervous|stressed|stress|on edge)\b/, 'stressed'], [/\b(tired|exhausted|drained|burnt out|burned out|wrecked|flat)\b/, 'drained'],
+      [/\b(guilty|my fault|blame myself|should have)\b/, 'like you should have done more'], [/\b(overwhelm\w*|too much|swamped)\b/, 'overwhelmed'],
+      [/\b(helpless|useless|hopeless|powerless)\b/, 'helpless'], [/\b(hurt|disrespected|unappreciated|ignored)\b/, 'hurt'], [/\b(numb|shocked|shock)\b/, 'shaken up']
+    ];
+    const CRISIS = /(suicid|kill myself|end it all|end my life|want to die|don'?t want to (be here|live)|hurt myself|self[- ]?harm|can'?t go on)/;
+    const INCIDENT = /\b(injur\w*|assault\w*|hit me|hit him|hit her|punch\w*|kick\w*|bit me|bitten|police|ambulance|restrain\w*|abus\w*|fell|fall|fallen|bleeding|threat\w*)\b/;
+    const NO = /^(no|nope|nah|not really|nothing|not sure|dunno|idk|i don'?t know)\b/;
+    const LISTEN = ['I’m listening. Take your time.', 'That sounds hard. What else is on your mind?', 'Thanks for sharing that. How are you feeling now?', 'It’s okay to let it all out here. Go on.'];
+    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null;
+    const log = () => $('chatLog');
+    function add(text, who, cls){ const d=document.createElement('div'); d.className='msg '+who+(cls?' '+cls:''); if(who==='me') d.textContent=text; else d.innerHTML=text; log().appendChild(d); log().scrollTop=log().scrollHeight; return d; }
+    function say(html, cls){ const t=add('…', 'bot', 'typing'); setTimeout(()=>{ t.classList.remove('typing'); t.innerHTML=html; if(cls) t.classList.add(cls); log().scrollTop=log().scrollHeight; }, 650); }
+    function feeling(t){ for(const [re,f] of FEELINGS) if(re.test(t)) return f; return null; }
+    function reply(raw){
+      const t=raw.toLowerCase();
+      if(CRISIS.test(t)){ say('I’m really glad you told me. You don’t have to carry this on your own. Please reach out to someone right now:\n'+LINES, 'alert'); told=true; return; }
+      const f=feeling(t), valid = f ? `It makes sense that you’d feel ${f} after that. ` : '';
+      let out;
+      if(stage===0) out = 'Thanks for telling me. That sounds like a lot to deal with. '+(f?valid:'')+'How are you feeling about it now?';
+      else if(stage===1) out = (valid || 'Whatever you’re feeling is a normal reaction to a hard session. ')+'Is there anything you handled well, even something small?';
+      else if(stage===2) out = (NO.test(t) ? 'That’s okay. Hard days don’t always have a bright side, and you still showed up. ' : 'That counts. Noticing what went right matters. ')+'What do you need right now? A break, some food, a chat with someone, rest?';
+      else if(stage===3) out = 'That sounds like a good plan. A few things that can help after a hard session:\n• Take three slow breaths and have some water\n• Talk it through with your supervisor or a colleague you trust\n• If it keeps playing on your mind, your workplace’s EAP offers free, confidential counselling\n\nYou can keep typing if there’s more, or tap Finish when you’re ready.';
+      else { out = valid + LISTEN[listenAt++ % LISTEN.length]; }
+      stage++;
+      if(!incidentTold && INCIDENT.test(t)){ incidentTold=true; out += '\n\nIf anyone was hurt or this might be a reportable incident, remember to let your supervisor know and fill in an incident report.'; }
+      say(out);
+    }
+    function stopBreathing(){ if(breathing){ clearInterval(breathing); breathing=null; } }
+    function breathe(){
+      stopBreathing();
+      const box=add('<div class="breathe-wrap"><div class="breathe"></div><div class="phase">Breathe in…</div></div>', 'bot');
+      const c=box.querySelector('.breathe'), ph=box.querySelector('.phase');
+      const steps=[['Breathe in…',true],['Hold…',true],['Breathe out…',false],['Hold…',false]]; let i=0, rounds=0;
+      const step=()=>{ const [txt,big]=steps[i%4]; ph.textContent=txt+(rounds<3?'':''); c.classList.toggle('big',big); i++; if(i%4===0) rounds++; if(rounds>=3){ stopBreathing(); setTimeout(()=>{ ph.textContent='Well done.'; c.classList.remove('big'); say('How are you feeling now?'); },4000); } };
+      requestAnimationFrame(step); breathing=setInterval(step,4000);
+    }
+    function open(){
+      stage=0; told=false; incidentTold=false; listenAt=0; stopBreathing(); log().innerHTML=''; $('chatText').value='';
+      $('debrief').hidden=false;
+      say('Hi. Sounds like it might have been a tough one. This is a private space to offload. Nothing here is saved, and there’s no need to use names.\n\nWhat happened?');
+      setTimeout(()=>$('chatText').focus(), 300);
+    }
+    function close(){ stopBreathing(); log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
+    $('debriefBtn').addEventListener('click', open);
+    $('debriefDone').addEventListener('click', close);
+    $('chatHelp').addEventListener('click', ()=>say('You don’t have to handle this alone. These are free and confidential:\n'+LINES+'\n\nYour workplace’s EAP is also free counselling. Ask your supervisor for the number.'));
+    $('chatBreathe').addEventListener('click', ()=>{ say('Let’s slow things down. Follow the circle: in for 4, hold for 4, out for 4, hold for 4. Three rounds.'); setTimeout(breathe, 900); });
+    $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; add(v,'me'); $('chatText').value=''; reply(v); });
+    $('chatText').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); $('chatForm').requestSubmit(); } });
+    return {open, close};
+  })();
 
   function showTab(t){
     document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===t)));
