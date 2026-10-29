@@ -256,7 +256,7 @@ html.locked .wrap{visibility:hidden}
 <div class="chat" id="debrief" hidden role="dialog" aria-modal="true" aria-labelledby="debriefTitle">
   <div class="chatbox">
     <div class="chat-head">
-      <div><h2 id="debriefTitle">Debrief</h2><p class="hint">Private. Nothing you type here leaves your phone or is saved.</p></div>
+      <div><h2 id="debriefTitle">Debrief</h2><p class="hint" id="debriefNote">Private. Nothing you type here leaves your phone or is saved.</p></div>
       <button class="btn small" id="debriefDone">Finish</button>
     </div>
     <div class="chat-log" id="chatLog" aria-live="polite"></div>
@@ -377,7 +377,28 @@ html.locked .wrap{visibility:hidden}
     const INCIDENT = /\b(injur\w*|assault\w*|hit me|hit him|hit her|punch\w*|kick\w*|bit me|bitten|police|ambulance|restrain\w*|abus\w*|fell|fall|fallen|bleeding|threat\w*)\b/;
     const NO = /^(no|nope|nah|not really|nothing|not sure|dunno|idk|i don'?t know)\b/;
     const LISTEN = ['I’m listening. Take your time.', 'That sounds hard. What else is on your mind?', 'Thanks for sharing that. How are you feeling now?', 'It’s okay to let it all out here. Go on.'];
-    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null;
+    // Claude replies come through the Debrief AI Google script (debrief-ai/Code.gs). Leave blank to use the simple on-phone replies.
+    const AI_URL = '';
+    const NOTE_AI = 'Private and not saved. What you say is sent securely to Claude AI for a reply and is not kept in the app.';
+    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
+    const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
+    const linkify = t => esc(t).replace(/\b(13 ?11 ?14|1300 ?22 ?4636|000)\b/g, m=>`<a href="tel:${m.replace(/ /g,'')}">${m}</a>`);
+    async function askClaude(raw){
+      const last = history[history.length-1];
+      if(last && last.role==='user') last.content += '\n\n'+raw; else history.push({role:'user', content:raw});
+      busy=true; const t=add('…', 'bot', 'typing');
+      try{
+        const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({device:deviceId, messages:history})});
+        const r = await res.json();
+        if(!r.text) throw new Error(r.error||'empty');
+        history.push({role:'assistant', content:r.content});
+        t.classList.remove('typing'); t.innerHTML=linkify(r.text); log().scrollTop=log().scrollHeight; Talk.heard(r.text);
+      }catch(e){
+        t.remove();
+        const why = e && e.message==='limit' ? 'You’ve reached this month’s Debrief limit, so here’s a simpler reply. ' : 'I couldn’t reach the AI just now (check your signal), so here’s a simpler reply. ';
+        add(why+'I’ll pass this on to the AI with your next message.', 'bot', 'alert'); reply(raw);
+      }finally{ busy=false; }
+    }
     const log = () => $('chatLog');
     function add(text, who, cls){ const d=document.createElement('div'); d.className='msg '+who+(cls?' '+cls:''); if(who==='me') d.textContent=text; else d.innerHTML=text; log().appendChild(d); log().scrollTop=log().scrollHeight; return d; }
     function say(html, cls){ const t=add('…', 'bot', 'typing'); setTimeout(()=>{ t.classList.remove('typing'); t.innerHTML=html; if(cls) t.classList.add(cls); log().scrollTop=log().scrollHeight; Talk.heard(t.textContent); }, 650); }
@@ -406,13 +427,17 @@ html.locked .wrap{visibility:hidden}
       requestAnimationFrame(step); breathing=setInterval(step,4000);
     }
     function open(){
-      stage=0; told=false; incidentTold=false; listenAt=0; stopBreathing(); log().innerHTML=''; $('chatText').value='';
+      stage=0; told=false; incidentTold=false; listenAt=0; history=[]; stopBreathing(); log().innerHTML=''; $('chatText').value='';
+      if(AI_URL) $('debriefNote').textContent=NOTE_AI;
       $('debrief').hidden=false;
-      say('Are you OK?\n\nThis is a private space to offload after a hard session. Nothing here is saved, and there’s no need to use names. Tell me what happened, or tap Talk and just speak.');
+      say('Are you OK?\n\nThis is a private space to offload after a hard session. Nothing is saved, and there’s no need to use names. Tell me what happened, or tap Talk and just speak.');
       setTimeout(()=>$('chatText').focus(), 300);
     }
-    function close(){ Talk.stop(); stopBreathing(); log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
-    function userSays(v){ add(v,'me'); reply(v); }
+    function close(){ Talk.stop(); stopBreathing(); history=[]; log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
+    function userSays(v){
+      add(v,'me');
+      if(AI_URL) askClaude(v); else reply(v);
+    }
 
     $('debriefBtn').addEventListener('click', open);
     $('debriefDone').addEventListener('click', close);
