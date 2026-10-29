@@ -317,8 +317,8 @@ html.locked .wrap{visibility:hidden}
       return en.find(x=>/natural|enhanced|premium/i.test(x.name)) || en.find(x=>/female|karen|catherine|serena|kate/i.test(x.name)) || vs.find(x=>x.lang==='en-AU') || vs.find(x=>/^en/.test(x.lang)); };
     function sayOne(text){
       return new Promise(res=>{
-        if(NTTS){ NTTS.speak({text, lang:'en-AU', rate:1.0, pitch:0.95}).then(res, res); return; }
-        const u=new SpeechSynthesisUtterance(text); u.lang='en-AU'; u.rate=1.0; u.pitch=0.95;
+        if(NTTS){ NTTS.speak({text, lang:'en-AU', rate:1.2, pitch:0.95}).then(res, res); return; }
+        const u=new SpeechSynthesisUtterance(text); u.lang='en-AU'; u.rate=1.2; u.pitch=0.95;
         const v=calmVoice(); if(v) u.voice=v;
         u.onend=res; u.onerror=res; speechSynthesis.speak(u);
       });
@@ -332,7 +332,7 @@ html.locked .wrap{visibility:hidden}
         const t=part.trim(); if(!t) continue;
         await sayOne(t);
         if(id!==sayId) return;
-        await pause(/[.!?]$/.test(t) ? 120 : 60);
+        await pause(/[.!?]$/.test(t) ? 60 : 0);
       }
     }
     async function allowed(){
