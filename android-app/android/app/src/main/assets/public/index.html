@@ -3,40 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0f6b63">
+<meta name="theme-color" content="#0f6b55">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Case Notes">
-<title>Shift Case Notes</title>
+<title>Case Note Keeper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 [hidden]{display:none!important}img{max-width:100%}html{-webkit-text-size-adjust:100%}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}
 /* Layout: one phone-width column; sticky tab bar; the dictation pad is the hero of the Log tab. */
 :root{
-  --bg:#eef2f1; --surface:#ffffff; --ink:#15302e; --muted:#5b6f6c; --line:#cfdad8;
-  --accent:#0f6b63; --accent-ink:#ffffff; --accent-soft:#d6ebe8; --warn:#9a4a10; --warn-soft:#fbe9d8; --danger:#a3271c;
+  --bg:#0f6b55; --surface:#fffaf4; --field:#fff7ee; --on-ink:#ffffff; --ink:#1f2a26; --muted:#6a5f50; --line:#efdcc6;
+  --card-ink:#1f2a26; --card-muted:#6a5f50; --bg-ink:#ffffff; --bg-muted:#d3ebe1;
+  --accent:#ff8000; --accent-ink:#1b1208; --accent-soft:#ffe6cc; --warn:#9a4a10; --warn-soft:#fbe9d8; --danger:#a3271c;
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0f1716; --surface:#172221; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
+  --bg:#0f1716; --surface:#172221; --field:#0f1716; --on-ink:#0f1716; --card-ink:#e3eeec; --card-muted:#93a8a5; --bg-ink:#e3eeec; --bg-muted:#93a8a5; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
   --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1716; --surface:#172221; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
+  --bg:#0f1716; --surface:#172221; --field:#0f1716; --on-ink:#0f1716; --card-ink:#e3eeec; --card-muted:#93a8a5; --bg-ink:#e3eeec; --bg-muted:#93a8a5; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
   --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+body{--ink:var(--bg-ink);--muted:var(--bg-muted);background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+.pad,.debrief,.note,.client-row,.lockbox,nav button,.chip,.btn,textarea,input,select{--ink:var(--card-ink);--muted:var(--card-muted);color:var(--ink)}
 .wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:12px 96px}
-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:8px 4px}
-h1{font-family:var(--display);font-weight:800;font-size:1.6rem;margin:0;letter-spacing:-.01em}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:8px 4px}
+h1{font-family:var(--display);font-weight:800;font-size:1.6rem;margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+h1 .logo{width:46px;height:46px;flex:none}
 h2{font-family:var(--display);font-weight:600;font-size:1.15rem;margin:0;text-wrap:balance}
 .clock{font-family:var(--mono);font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
 nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-block:10px}
 nav button{font:700 .95rem var(--body);padding:10px 4px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
-nav button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+nav button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 section{display:flex;flex-direction:column;gap:16px}
 .label{font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -48,7 +51,7 @@ section{display:flex;flex-direction:column;gap:16px}
 .pad{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .pad-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .stamp{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
-textarea,input[type=text],input[type=datetime-local],select{width:100%;font:1rem/1.5 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea,input[type=text],input[type=datetime-local],select{width:100%;font:1rem/1.5 var(--body);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 textarea{min-height:190px;resize:vertical}
 textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:1px}
 .hint{font-size:.85rem;color:var(--muted);margin:0}
@@ -58,6 +61,9 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 .btn.small{padding:6px 10px;font-size:.85rem;border-radius:8px}
 .btn.danger{color:var(--danger);border-color:var(--danger)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+.debrief{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;text-align:center}
+.debrief p{margin:0;font-weight:700}
+.debrief .btn.primary{flex:none}
 .btn.rec{border-color:var(--danger);color:var(--danger)}
 .btn.rec.on{background:var(--danger);color:var(--surface)}
 .banner{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:.9rem}
@@ -72,21 +78,55 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 .empty{border:1.5px dashed var(--line);border-radius:12px;padding:18px;color:var(--muted);text-align:center}
 .client-row{display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
 .client-row input{flex:1;min-width:0;background:transparent;border-color:transparent}
+button.client-row{width:100%;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.client-row .cname{flex:1;min-width:0;font-weight:700;overflow-wrap:anywhere}
+.client-row .chev{color:var(--muted);font-size:1.2rem;line-height:1}
+.account{display:flex;flex-direction:column;gap:2px;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px}
+.account .label{font-size:.75rem;color:var(--muted)}
+.account .name{font-weight:700}
+.account .email{font-size:.9rem;color:var(--muted);overflow-wrap:anywhere}
+.chat{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;justify-content:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.chatbox{width:100%;max-width:640px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.chat-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.chat-head h2{margin:0;font-family:var(--display)}
+.chat-head .btn{flex:none}
+.chat-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0}
+.msg{max-width:85%;padding:10px 14px;border-radius:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;--ink:var(--card-ink);--muted:var(--card-muted);color:var(--ink)}
+.msg.bot{align-self:flex-start;background:var(--surface);border-bottom-left-radius:4px}
+.msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px}
+.msg.alert{background:var(--warn-soft);color:var(--warn);font-weight:700}
+.msg a{color:inherit;font-weight:700}
+.msg.typing{opacity:.7;font-style:italic}
+.chat-tools{display:flex;gap:8px;flex-wrap:wrap}
+.chat-input{display:flex;gap:8px;align-items:flex-end}
+.chat-input textarea{flex:1;resize:none;min-height:48px;max-height:140px}
+.chat-input .btn{flex:none}
+.chat-status{font-size:.85rem;color:var(--muted);min-height:1.2em;margin:0}
+.breathe{width:110px;height:110px;margin:6px auto;border-radius:50%;background:var(--accent-soft);border:3px solid var(--accent);transform:scale(.6);transition:transform 4s ease-in-out}
+.breathe.big{transform:scale(1)}
+.breathe-wrap{text-align:center}
+.lock{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px}
+.lockbox{max-width:360px;width:100%;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:stretch}
+html.locked .wrap{visibility:hidden}
+.lockicon{font-size:2.6rem}
+.lockbox .btn{flex:none}
+.tag{font-size:.75rem;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .client-row input:focus{border-color:var(--line)}
 .count{font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:700;z-index:20;max-width:90vw}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card-ink);color:var(--on-ink);padding:10px 16px;border-radius:10px;font-weight:700;z-index:20;max-width:90vw}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
 @media (prefers-reduced-motion:no-preference){.btn.rec.on{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.7}}}
-.paywall{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--ink) 55%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.paywall{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--card-ink) 55%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 .paycard{max-width:560px;width:100%}
 .trial{font-size:.85rem;color:var(--muted)}
 </style>
+<script>try{ if(JSON.parse(localStorage.getItem('lockOn'))) document.documentElement.classList.add('locked'); }catch(e){}</script>
 </head>
 <body>
 
 <div class="wrap">
   <header>
-    <h1>Shift Case Notes</h1>
+    <h1><img class="logo" src="data:image/png;base64,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" alt="">Case Note Keeper</h1>
     <span class="clock" id="clock"></span>
   </header>
   <nav role="tablist">
@@ -130,6 +170,11 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       <div class="pad-head"><h2>This shift</h2><span class="count" id="todayCount"></span></div>
       <div class="notes" id="todayNotes" style="margin-top:10px"></div>
     </div>
+
+    <div class="debrief">
+      <p>Was this a difficult session? Want to debrief?</p>
+      <button class="btn primary" id="debriefBtn">Debrief</button>
+    </div>
   </section>
 
   <!-- HISTORY -->
@@ -138,38 +183,102 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       <select id="filterClient" aria-label="Show notes for" style="flex:1 1 200px"></select>
       <input type="text" id="search" placeholder="Search notes" aria-label="Search notes" style="flex:1 1 160px">
     </div>
-    <div class="row">
-      <button class="btn small" id="exportCsv">Save or share CSV</button>
-      <button class="btn small" id="copyText">Copy as text</button>
-      <button class="btn small" id="backupBtn">Back up everything</button>
-      <label class="btn small" for="restoreFile" style="display:inline-block">Restore backup</label>
-      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
-      <span class="count" id="histCount"></span>
+    <div class="pad" id="drivePanel">
+      <h2>Back up notes to Google Drive</h2>
+      <p class="hint">Your notes are stored on this phone. Back them up to Google Drive so they’re safe if your phone is lost, broken or replaced. Every note you save, edit or delete is backed up automatically, with a spreadsheet for each client.</p>
+      <div class="account" id="driveAccount" hidden></div>
+      <p class="hint" id="driveStatus">Not backed up yet. Tap Connect Google Drive and choose your Google account.</p>
+      <div class="row">
+        <button class="btn primary" id="gConnect">Connect Google Drive</button>
+        <button class="btn small" id="gSyncNow" hidden>Back up everything again</button>
+        <button class="btn small" id="gOff" hidden>Disconnect</button>
+      </div>
     </div>
-    <p class="hint" id="backupHint">Your notes are stored only on this phone. Tap <b>Back up everything</b> now and then and keep the file somewhere safe (choose Google Drive or Gmail from the share menu).</p>
+    <!-- /drive panel -->
+    <div class="row"><span class="count" id="histCount"></span></div>
     <div class="notes" id="historyNotes"></div>
   </section>
 
   <!-- CLIENTS -->
   <section id="view-clients" hidden>
-    <div class="row">
-      <input type="text" id="newClient" placeholder="Add a client" autocomplete="off" style="flex:1 1 200px">
-      <button class="btn" id="addClient">Add</button>
+    <div id="clientsMain">
+      <div class="row">
+        <input type="text" id="newClient" placeholder="Add a client" autocomplete="off" style="flex:1 1 200px">
+        <button class="btn" id="addClient">Add</button>
+      </div>
+      <p class="hint">Tap a client to see their notes, rename them or hide them.</p>
+      <div class="notes" id="clientList"></div>
+      <div class="pad" id="lockPanel" style="margin-top:16px">
+        <h2>Fingerprint lock</h2>
+        <p class="hint" id="lockStatus">Off. Turn this on and the app asks for your fingerprint (or your phone’s PIN) every time you open it, so nobody else can read your clients’ notes.</p>
+        <div class="row">
+          <button class="btn primary" id="lockOn">Turn on fingerprint lock</button>
+          <button class="btn small" id="lockOff" hidden>Turn off</button>
+        </div>
+      </div>
     </div>
-    <p class="hint">Tap a name to rename it. Hiding a client removes them from the Log screen but keeps their notes.</p>
-    <div class="notes" id="clientList"></div>
+    <div id="clientDetail" hidden>
+      <div class="row"><button class="btn small" id="clientBack">‹ All clients</button></div>
+      <div class="pad">
+        <div class="row">
+          <input type="text" id="clientName" aria-label="Client name" autocomplete="off" style="flex:1 1 200px">
+          <button class="btn small" id="clientHide">Hide</button>
+        </div>
+        <p class="hint" id="clientHint">Change the name above to rename this client. Hiding a client removes them from the Log screen but keeps their notes.</p>
+      </div>
+      <div class="pad-head"><h2 id="clientNotesTitle">Notes</h2><span class="count" id="clientNotesCount"></span></div>
+      <div class="notes" id="clientNotes"></div>
+    </div>
   </section>
 </div>
 <div class="toast" id="toast" hidden></div>
 <div class="paywall" id="paywall" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
   <div class="pad paycard">
     <h2 id="payTitle">Your free month has ended</h2>
-    <p class="hint" id="payText">Unlock Shift Case Notes to keep logging notes. Your saved notes stay on this phone and you can still read and export them.</p>
+    <p class="hint" id="payText">Unlock Case Note Keeper to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.</p>
     <div class="row">
       <button class="btn primary" id="buyBtn">Unlock</button>
       <button class="btn small" id="restoreBuy">I've already paid</button>
     </div>
     <button class="btn small" id="payLater">Not now</button>
+  </div>
+</div>
+<div class="paywall" id="gWelcome" hidden role="dialog" aria-modal="true" aria-labelledby="gWelcomeTitle">
+  <div class="pad paycard">
+    <h2 id="gWelcomeTitle">Back up your notes to Google Drive?</h2>
+    <p class="hint">Your notes are stored on this phone. Sign in with your Google account once and every note is backed up to your Google Drive automatically, with a spreadsheet for each client. You can change this any time in the History tab.</p>
+    <div class="row">
+      <button class="btn primary" id="gWelcomeYes">Connect Google Drive</button>
+      <button class="btn small" id="gWelcomeNo">Not now</button>
+    </div>
+  </div>
+</div>
+<div class="chat" id="debrief" hidden role="dialog" aria-modal="true" aria-labelledby="debriefTitle">
+  <div class="chatbox">
+    <div class="chat-head">
+      <div><h2 id="debriefTitle">Debrief</h2><p class="hint">Private. Nothing you type here leaves your phone or is saved.</p></div>
+      <button class="btn small" id="debriefDone">Finish</button>
+    </div>
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="chat-tools">
+      <button class="btn small" id="chatBreathe">Breathing exercise</button>
+      <button class="btn small" id="chatHelp">Support lines</button>
+    </div>
+    <p class="chat-status" id="chatStatus" aria-live="polite"></p>
+    <form class="chat-input" id="chatForm">
+      <textarea id="chatText" rows="2" placeholder="Type or tap the keyboard microphone and talk…"></textarea>
+      <button class="btn rec" id="chatTalk" type="button" hidden>🎤 Talk</button>
+      <button class="btn primary" id="chatSend" type="submit">Send</button>
+    </form>
+  </div>
+</div>
+<div class="lock" id="lockScreen" hidden role="dialog" aria-modal="true" aria-labelledby="lockTitle">
+  <div class="lockbox">
+    <div class="lockicon" aria-hidden="true">🔒</div>
+    <h2 id="lockTitle">Case Note Keeper is locked</h2>
+    <p class="hint">Use your fingerprint or your phone’s PIN to open your notes.</p>
+    <button class="btn primary" id="unlockBtn">Unlock</button>
+    <button class="btn small" id="lockReset">Fingerprint not working? Set it up again</button>
   </div>
 </div>
 
@@ -185,6 +294,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   const toLocalInput = ms => { const d=new Date(ms); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
   const ls = { get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}} };
 
+  let viewClient = null; // client open on the Clients tab
   let clients = [];      // {id,name,hidden}
   let notes = [];        // {id,clientId,clientName,text,createdAt,editedAt}
   let selected = ls.get('sel', null);
@@ -195,7 +305,125 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2200); }
 
   /* ---------- tabs ---------- */
-  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.tab==='clients') viewClient=null; showTab(b.dataset.tab); }));
+  /* ---------- Talk: speak to the debrief chat and hear it answer ---------- */
+  // Uses the phone's own speech services. Replies are read aloud, then it listens for the next thing you say.
+  const Talk = (()=>{
+    const P = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() ? window.Capacitor.Plugins : {};
+    const NSR = P.SpeechRecognition, NTTS = P.TextToSpeech;
+    const WSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const canHear = !!(NSR || WSR), canSpeak = !!(NTTS || window.speechSynthesis);
+    let on=false, quiet=0, onText=null, rec=null;
+    const status = m => { const el=$('chatStatus'); if(el) el.textContent = m||''; };
+    const btn = () => $('chatTalk');
+    function setOn(v){ on=v; quiet=0; const b=btn(); b.classList.toggle('on',v); b.textContent = v ? '■ Stop' : '🎤 Talk'; if(!v){ status(''); } }
+    function speak(text){
+      return new Promise(res=>{
+        if(!canSpeak) return res();
+        if(NTTS){ NTTS.speak({text, lang:'en-AU', rate:0.95, pitch:1.0}).then(res, res); return; }
+        const u=new SpeechSynthesisUtterance(text); u.lang='en-AU'; u.rate=0.95;
+        const v=speechSynthesis.getVoices().find(x=>x.lang==='en-AU') || speechSynthesis.getVoices().find(x=>/^en/.test(x.lang)); if(v) u.voice=v;
+        u.onend=res; u.onerror=res; speechSynthesis.cancel(); speechSynthesis.speak(u);
+      });
+    }
+    function hush(){ try{ if(NTTS) NTTS.stop(); else if(window.speechSynthesis) speechSynthesis.cancel(); }catch{} }
+    async function listenOnce(){
+      if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }
+      return new Promise((res,rej)=>{
+        rec=new WSR(); rec.lang='en-AU'; rec.continuous=false; rec.interimResults=false; let got='';
+        rec.onresult=ev=>{ got=Array.from(ev.results).map(r=>r[0].transcript).join(' '); };
+        rec.onerror=ev=>{ if(ev.error==='not-allowed'||ev.error==='service-not-allowed') rej(new Error('blocked')); };
+        rec.onend=()=>{ rec=null; res(got); };
+        rec.start();
+      });
+    }
+    async function listen(){
+      if(!on) return;
+      status('Listening… speak now');
+      let text='';
+      try{ text = (await listenOnce()).trim(); }
+      catch(e){ setOn(false); toast(e && e.message==='blocked' ? 'The microphone is blocked. Allow it in your phone settings to talk to Debrief.' : 'Could not hear you. Tap Talk to try again, or type instead.'); return; }
+      if(!on) return;
+      if(!text){ if(++quiet>=2){ setOn(false); status('Paused. Tap Talk when you’re ready.'); return; } return listen(); }
+      quiet=0; status(''); onText && onText(text.charAt(0).toUpperCase()+text.slice(1));
+    }
+    return {
+      canHear,
+      init(cb){ onText=cb; const b=btn(); if(!canHear) return; b.hidden=false;
+        b.addEventListener('click', async()=>{
+          if(on){ setOn(false); hush(); try{ if(NSR) NSR.stop(); else if(rec) rec.abort(); }catch{} return; }
+          if(NSR){ try{ let p=await NSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await NSR.requestPermissions(); if(p.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to talk to Debrief.'); return; } }catch{} }
+          setOn(true); listen();
+        });
+      },
+      // Called with each new reply: read it out, then listen for the answer.
+      async heard(text){ if(!on) return; status('Speaking…'); await speak(text.replace(/•/g,'')); if(on) listen(); },
+      stop(){ setOn(false); hush(); try{ if(NSR) NSR.stop(); else if(rec) rec.abort(); }catch{} }
+    };
+  })();
+
+  /* ---------- Debrief: a private listener that runs only on this phone ---------- */
+  // Nothing typed here is stored or sent anywhere; closing the chat wipes it.
+  const Debrief = (()=>{
+    const LINES = '<a href="tel:131114">Lifeline 13 11 14</a> (24 hours)\n<a href="tel:1300224636">Beyond Blue 1300 22 4636</a>\n<a href="tel:000">000</a> if anyone is in danger';
+    const FEELINGS = [
+      [/\b(angry|furious|pissed|livid|mad|rage)\b/, 'angry'], [/\b(frustrat\w*|annoy\w*|irritat\w*)\b/, 'frustrated'],
+      [/\b(sad|upset|cry|cried|crying|teary|heartbroken|down)\b/, 'upset'], [/\b(scared|afraid|frightened|terrified|unsafe|threatened)\b/, 'shaken'],
+      [/\b(anxious|worried|worry|nervous|stressed|stress|on edge)\b/, 'stressed'], [/\b(tired|exhausted|drained|burnt out|burned out|wrecked|flat)\b/, 'drained'],
+      [/\b(guilty|my fault|blame myself|should have)\b/, 'like you should have done more'], [/\b(overwhelm\w*|too much|swamped)\b/, 'overwhelmed'],
+      [/\b(helpless|useless|hopeless|powerless)\b/, 'helpless'], [/\b(hurt|disrespected|unappreciated|ignored)\b/, 'hurt'], [/\b(numb|shocked|shock)\b/, 'shaken up']
+    ];
+    const CRISIS = /(suicid|kill myself|end it all|end my life|want to die|don'?t want to (be here|live)|hurt myself|self[- ]?harm|can'?t go on)/;
+    const INCIDENT = /\b(injur\w*|assault\w*|hit me|hit him|hit her|punch\w*|kick\w*|bit me|bitten|police|ambulance|restrain\w*|abus\w*|fell|fall|fallen|bleeding|threat\w*)\b/;
+    const NO = /^(no|nope|nah|not really|nothing|not sure|dunno|idk|i don'?t know)\b/;
+    const LISTEN = ['I’m listening. Take your time.', 'That sounds hard. What else is on your mind?', 'Thanks for sharing that. How are you feeling now?', 'It’s okay to let it all out here. Go on.'];
+    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null;
+    const log = () => $('chatLog');
+    function add(text, who, cls){ const d=document.createElement('div'); d.className='msg '+who+(cls?' '+cls:''); if(who==='me') d.textContent=text; else d.innerHTML=text; log().appendChild(d); log().scrollTop=log().scrollHeight; return d; }
+    function say(html, cls){ const t=add('…', 'bot', 'typing'); setTimeout(()=>{ t.classList.remove('typing'); t.innerHTML=html; if(cls) t.classList.add(cls); log().scrollTop=log().scrollHeight; Talk.heard(t.textContent); }, 650); }
+    function feeling(t){ for(const [re,f] of FEELINGS) if(re.test(t)) return f; return null; }
+    function reply(raw){
+      const t=raw.toLowerCase();
+      if(CRISIS.test(t)){ say('I’m really glad you told me. You don’t have to carry this on your own. Please reach out to someone right now:\n'+LINES, 'alert'); told=true; return; }
+      const f=feeling(t), valid = f ? `It makes sense that you’d feel ${f} after that. ` : '';
+      let out;
+      if(stage===0) out = 'Thanks for telling me. That sounds like a lot to deal with. '+(f?valid:'')+'How are you feeling about it now?';
+      else if(stage===1) out = (valid || 'Whatever you’re feeling is a normal reaction to a hard session. ')+'Is there anything you handled well, even something small?';
+      else if(stage===2) out = (NO.test(t) ? 'That’s okay. Hard days don’t always have a bright side, and you still showed up. ' : 'That counts. Noticing what went right matters. ')+'What do you need right now? A break, some food, a chat with someone, rest?';
+      else if(stage===3) out = 'That sounds like a good plan. A few things that can help after a hard session:\n• Take three slow breaths and have some water\n• Talk it through with your supervisor or a colleague you trust\n• If it keeps playing on your mind, your workplace’s EAP offers free, confidential counselling\n\nYou can keep typing if there’s more, or tap Finish when you’re ready.';
+      else { out = valid + LISTEN[listenAt++ % LISTEN.length]; }
+      stage++;
+      if(!incidentTold && INCIDENT.test(t)){ incidentTold=true; out += '\n\nIf anyone was hurt or this might be a reportable incident, remember to let your supervisor know and fill in an incident report.'; }
+      say(out);
+    }
+    function stopBreathing(){ if(breathing){ clearInterval(breathing); breathing=null; } }
+    function breathe(){
+      stopBreathing();
+      const box=add('<div class="breathe-wrap"><div class="breathe"></div><div class="phase">Breathe in…</div></div>', 'bot');
+      const c=box.querySelector('.breathe'), ph=box.querySelector('.phase');
+      const steps=[['Breathe in…',true],['Hold…',true],['Breathe out…',false],['Hold…',false]]; let i=0, rounds=0;
+      const step=()=>{ const [txt,big]=steps[i%4]; ph.textContent=txt+(rounds<3?'':''); c.classList.toggle('big',big); i++; if(i%4===0) rounds++; if(rounds>=3){ stopBreathing(); setTimeout(()=>{ ph.textContent='Well done.'; c.classList.remove('big'); say('How are you feeling now?'); },4000); } };
+      requestAnimationFrame(step); breathing=setInterval(step,4000);
+    }
+    function open(){
+      stage=0; told=false; incidentTold=false; listenAt=0; stopBreathing(); log().innerHTML=''; $('chatText').value='';
+      $('debrief').hidden=false;
+      say('Are you OK?\n\nThis is a private space to offload after a hard session. Nothing here is saved, and there’s no need to use names. Tell me what happened, or tap Talk and just speak.');
+      setTimeout(()=>$('chatText').focus(), 300);
+    }
+    function close(){ Talk.stop(); stopBreathing(); log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
+    function userSays(v){ add(v,'me'); reply(v); }
+
+    $('debriefBtn').addEventListener('click', open);
+    $('debriefDone').addEventListener('click', close);
+    $('chatHelp').addEventListener('click', ()=>say('You don’t have to handle this alone. These are free and confidential:\n'+LINES+'\n\nYour workplace’s EAP is also free counselling. Ask your supervisor for the number.'));
+    $('chatBreathe').addEventListener('click', ()=>{ say('Let’s slow things down. Follow the circle: in for 4, hold for 4, out for 4, hold for 4. Three rounds.'); setTimeout(breathe, 900); });
+    $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; $('chatText').value=''; userSays(v); });
+    $('chatText').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); $('chatForm').requestSubmit(); } });
+    Talk.init(userSays);
+    return {open, close};
+  })();
+
   function showTab(t){
     document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===t)));
     ['log','history','clients'].forEach(v=>$('view-'+v).hidden = v!==t);
@@ -256,11 +484,24 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
 
     // clients
     const counts={}; notes.forEach(n=>counts[n.clientId]=(counts[n.clientId]||0)+1);
-    $('clientList').innerHTML = clients.length ? clients.map(c=>`<div class="client-row" data-id="${esc(c.id)}">
-      <input type="text" id="cn-${esc(c.id)}" value="${esc(c.name)}" aria-label="Client name">
-      <span class="count">${counts[c.id]||0} notes</span>
-      <button class="btn small" data-act="toggle">${c.hidden?'Show':'Hide'}</button></div>`).join('')
+    const plural = k => k+(k===1?' note':' notes');
+    $('clientList').innerHTML = clients.length ? clients.map(c=>`<button class="client-row" data-id="${esc(c.id)}">
+      <span class="cname">${esc(c.name)}</span>${c.hidden?'<span class="tag">Hidden</span>':''}
+      <span class="count">${plural(counts[c.id]||0)}</span><span class="chev" aria-hidden="true">›</span></button>`).join('')
       : `<div class="empty">No clients yet. Add the people you support, one at a time.</div>`;
+    const vc = clients.find(c=>c.id===viewClient);
+    if(!vc) viewClient=null;
+    $('clientsMain').hidden = !!vc; $('clientDetail').hidden = !vc;
+    if(vc){
+      if(document.activeElement!==$('clientName')) $('clientName').value=vc.name;
+      $('clientHide').textContent = vc.hidden ? 'Show on Log screen' : 'Hide';
+      const mine = notes.filter(n=>n.clientId===vc.id);
+      $('clientNotesTitle').textContent = 'Notes for '+vc.name;
+      $('clientNotesCount').textContent = plural(mine.length);
+      let ch='', cl='';
+      mine.forEach(n=>{ const k=dayKey(n.createdAt); if(k!==cl){ ch+=`<h3 class="day">${fmtDay.format(n.createdAt)}</h3>`; cl=k; } ch+=noteCard(n); });
+      $('clientNotes').innerHTML = ch || `<div class="empty">No notes for ${esc(vc.name)} yet.</div>`;
+    }
   }
 
   function filtered(){
@@ -327,39 +568,25 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
   $('filterClient').addEventListener('change',render);
   $('search').addEventListener('input',()=>{ clearTimeout(render._t); render._t=setTimeout(render,200); });
 
-  function csv(list){
-    const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-    const rows=[['Date','Time','Client','Note','Last edited']];
-    list.slice().reverse().forEach(n=>rows.push([fmtDate.format(n.createdAt),fmtTime.format(n.createdAt),nameOf(n.clientId)||n.clientName,n.text,n.editedAt?fmtDate.format(n.editedAt)+' '+fmtTime.format(n.editedAt):'']));
-    return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
-  }
-  function plain(list){
-    return list.slice().reverse().map(n=>`${fmtDate.format(n.createdAt)} ${fmtTime.format(n.createdAt)} | ${nameOf(n.clientId)||n.clientName}\n${n.text}`).join('\n\n');
-  }
-  $('exportCsv').addEventListener('click',async()=>{
-    const list=filtered(); if(!list.length){ toast('No notes to export'); return; }
-    const f=$('filterClient'); const who=f.value==='all'?'all-clients':(nameOf(f.value)||'client').replace(/[^\w-]+/g,'-');
-    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    await saveFile(`case-notes-${who}-${stamp}.csv`, csv(list), 'text/csv');
-  });
-  $('copyText').addEventListener('click',()=>{
-    const list=filtered(); if(!list.length){ toast('No notes to copy'); return; }
-    navigator.clipboard.writeText(plain(list)).then(()=>toast('Copied '+list.length+' notes')).catch(()=>toast('Copy was blocked on this device'));
-  });
 
   /* ---------- clients tab ---------- */
   $('addClient').addEventListener('click',async()=>{ if(await addClient($('newClient').value)){ $('newClient').value=''; toast('Client added'); }});
   $('newClient').addEventListener('keydown',e=>{ if(e.key==='Enter') $('addClient').click(); });
-  $('clientList').addEventListener('change',e=>{
-    const row=e.target.closest('.client-row'); if(!row||e.target.tagName!=='INPUT') return;
-    const name=e.target.value.trim(); if(!name){ render(); return; }
-    clients=clients.map(c=>c.id===row.dataset.id?{...c,name}:c); store.saveClients(clients).then(()=>toast('Renamed')); render();
-  });
   $('clientList').addEventListener('click',e=>{
-    const b=e.target.closest('button[data-act="toggle"]'); if(!b) return;
-    const id=b.closest('.client-row').dataset.id;
-    clients=clients.map(c=>c.id===id?{...c,hidden:!c.hidden}:c); store.saveClients(clients); render();
+    const row=e.target.closest('.client-row'); if(!row) return;
+    viewClient=row.dataset.id; render(); window.scrollTo(0,0);
   });
+  $('clientBack').addEventListener('click',()=>{ viewClient=null; render(); });
+  $('clientName').addEventListener('change',()=>{
+    const name=$('clientName').value.trim(); if(!name||!viewClient){ render(); return; }
+    clients=clients.map(c=>c.id===viewClient?{...c,name}:c); store.saveClients(clients).then(()=>toast('Renamed')); gDirty(viewClient); render();
+  });
+  $('clientHide').addEventListener('click',()=>{
+    const id=viewClient; if(!id) return;
+    clients=clients.map(c=>c.id===id?{...c,hidden:!c.hidden}:c); store.saveClients(clients); render();
+    toast(clients.find(c=>c.id===id).hidden?'Hidden from the Log screen':'Showing on the Log screen');
+  });
+  $('clientNotes').addEventListener('click',onNoteClick);
 
   /* ---------- in-page dictation ---------- */
   // Android Chrome stops listening after each pause, so we restart until the user taps Stop.
@@ -404,7 +631,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       try{
         const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
         let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
-        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Shift Case Notes in your phone settings to use Dictate.'); return; }
+        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
       base=$('noteText').value; cur=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
@@ -440,7 +667,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
         $('noteText').dispatchEvent(new Event('input'));
       };
       rec.onerror=ev=>{
-        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. Allow the microphone for Shift Case Notes in your phone settings.');
+        if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. Allow the microphone for Case Note Keeper in your phone settings.');
         else if(ev.error==='network') stopAll('Dictation needs an internet connection. Use the keyboard microphone instead.');
         else if(ev.error==='audio-capture') stopAll('No microphone found.');
         else fails++;
@@ -463,50 +690,259 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     });
   }
 
-  /* ---------- files ---------- */
-  async function saveFile(name, text, type){
-    const P = window.Capacitor && window.Capacitor.Plugins;
-    if (P && P.Filesystem && P.Share) {
-      try{
-        const res = await P.Filesystem.writeFile({path:name, data:text, directory:'CACHE', encoding:'utf8'});
-        await P.Share.share({title:name, dialogTitle:'Save or send '+name, url:res.uri});
-      }catch(e){ if(!/cancel/i.test(String(e && (e.message||e)))) toast('Could not share the file.'); }
-      return;
-    }
-    const file = new File([text], name, {type});
-    try{ if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }
-    catch(e){ if(e && e.name==='AbortError') return; }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; document.body.appendChild(a); a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); toast('File saved');
-  }
-  $('backupBtn').addEventListener('click',()=>{
-    const d=new Date(); const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    ls.set('lastBackup',Date.now());
-    saveFile(`case-notes-backup-${stamp}.json`, JSON.stringify({app:'shift-case-notes',version:1,exportedAt:Date.now(),clients,notes},null,1),'application/json');
-  });
-  $('restoreFile').addEventListener('change',async e=>{
-    const f=e.target.files[0]; e.target.value=''; if(!f) return;
-    try{
-      const data=JSON.parse(await f.text());
-      if(data.app!=='shift-case-notes'||!Array.isArray(data.notes)) throw 0;
-      const cMap=new Map(clients.map(c=>[c.id,c])); (data.clients||[]).forEach(c=>{ if(!cMap.has(c.id)) cMap.set(c.id,c); });
-      const nMap=new Map(notes.map(n=>[n.id,n])); let added=0; data.notes.forEach(n=>{ if(!nMap.has(n.id)){ nMap.set(n.id,n); added++; } });
-      clients=[...cMap.values()]; notes=[...nMap.values()].sort((a,b)=>b.createdAt-a.createdAt);
-      ls.set('local:clients',clients); ls.set('local:notes',notes); render(); toast('Restored '+added+' notes');
-    }catch{ toast('That file is not a Case Notes backup'); }
-  });
-
   /* ---------- storage (on this device) ---------- */
   clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;
 
+  /* ---------- Google Drive: the person's own account ---------- */
+  // After a one-time Google sign-in, every change is copied to a "Case Note Keeper"
+  // folder in their Drive: one spreadsheet per client plus "All case notes".
+  // Each changed client's sheet is rewritten from the notes on this phone.
+  const GD = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GoogleDrive;
+  const DRIVE = 'https://www.googleapis.com/drive/v3/files', SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
+  const FOLDER_MIME = 'application/vnd.google-apps.folder', SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
+  const FOLDER_NAME = 'Case Note Keeper';
+  const CLIENT_COLS = {head:['Date','Time','Case note','Last edited'], widths:[100,80,520,140], wrap:2};
+  const ALL_COLS = {head:['Date','Time','Client','Case note','Last edited'], widths:[100,80,140,520,140], wrap:3};
+  const gDate = new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'2-digit',year:'numeric'});
+  let gOn = ls.get('gOn', false), gBusy = false, gAgain = false, gTok = null, gTokAt = 0, gTimer = null;
+  const gIds = () => ls.get('gIds', {folder:null, all:null, clients:{}});
+  const gSaveId = (key, id) => { const ids = gIds(); if(key==='folder'||key==='all') ids[key]=id; else ids.clients[key]=id; ls.set('gIds', ids); };
+
+  function gDirty(cid){ if(!gOn || !cid) return; const d=ls.get('gDirty',[]); if(!d.includes(cid)){ d.push(cid); ls.set('gDirty',d); } gSoon(); }
+  function gDirtyAll(){ if(!gOn) return; ls.set('gDirty', [...new Set(clients.map(c=>c.id).concat(notes.map(n=>n.clientId)))]); gSoon(); }
+  function gSoon(){ clearTimeout(gTimer); gTimer=setTimeout(gSync, 1500); }
+
+  function gStatus(msg){
+    $('driveStatus').textContent = msg;
+    $('gSyncNow').hidden = $('gOff').hidden = !gOn;
+    const a = gOn && ls.get('gAccount', null);
+    $('driveAccount').hidden = !gOn;
+    $('driveAccount').innerHTML = !gOn ? '' : a && a.email
+      ? `<span class="label">Backing up to this Google account</span>${a.name?`<span class="name">${esc(a.name)}</span>`:''}<span class="email">${esc(a.email)}</span>`
+      : `<span class="label">Backing up to your Google Drive</span><span class="name">Connected</span>`;
+  }
+  function gIdle(){
+    const waiting = ls.get('gDirty',[]).length, last = ls.get('gLast',0);
+    $('gConnect').hidden = true;
+    gStatus(waiting ? `${waiting} ${waiting===1?'client has':'clients have'} changes waiting to back up. They’ll send next time you have signal.`
+      : `All notes backed up to the "${FOLDER_NAME}" folder in Google Drive${last?`. Last backup ${fmtTime.format(last)}, ${fmtDate.format(last)}`:''}.`);
+  }
+  async function gLoadAccount(){
+    try{
+      const r = await gApi('GET', 'https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)');
+      if(r.user && r.user.emailAddress){ ls.set('gAccount', {name:r.user.displayName||'', email:r.user.emailAddress}); if(!gBusy) gIdle(); }
+    }catch(e){}
+  }
+
+  async function gToken(interactive){
+    if(gTok && Date.now()-gTokAt < 45*60*1000) return gTok;
+    const r = await GD.authorize({interactive});
+    gTok = r.accessToken; gTokAt = Date.now();
+    return gTok;
+  }
+  async function gApi(method, url, body, retried){
+    const tok = await gToken(false);
+    const headers = {Authorization:'Bearer '+tok};
+    if(body) headers['Content-Type'] = 'application/json';
+    const res = await fetch(url, {method, headers, body: body ? JSON.stringify(body) : undefined});
+    if(res.status===401 && !retried){ gTok=null; await GD.clearToken({token:tok}).catch(()=>{}); return gApi(method, url, body, true); }
+    if(!res.ok){ const e=new Error('http_'+res.status); e.status=res.status; throw e; }
+    return res.status===204 ? {} : res.json();
+  }
+  async function gMeta(id){
+    if(!id) return null;
+    try{ const f=await gApi('GET', `${DRIVE}/${id}?fields=id,name,trashed`); return f.trashed ? null : f; }
+    catch(e){ if(e.status===404) return null; throw e; }
+  }
+  async function gFind(name, mime, parent){
+    const quoted = "'" + name.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + "'";
+    const q = [`name=${quoted}`, `mimeType='${mime}'`, 'trashed=false'].concat(parent?[`'${parent}' in parents`]:[]).join(' and ');
+    const r = await gApi('GET', `${DRIVE}?fields=files(id)&q=${encodeURIComponent(q)}`);
+    return r.files && r.files[0] ? r.files[0].id : null;
+  }
+  async function gFolder(){
+    const known = gIds().folder;
+    if(await gMeta(known)) return known;
+    const id = await gFind(FOLDER_NAME, FOLDER_MIME) || (await gApi('POST', `${DRIVE}?fields=id`, {name:FOLDER_NAME, mimeType:FOLDER_MIME})).id;
+    gSaveId('folder', id);
+    return id;
+  }
+  async function gBook(key, name, folder, cols){
+    const ids = gIds(), known = key==='all' ? ids.all : ids.clients[key];
+    let id = null, fresh = false;
+    const meta = await gMeta(known);
+    if(meta){ id = meta.id; if(meta.name!==name) await gApi('PATCH', `${DRIVE}/${id}`, {name}); }
+    else {
+      id = await gFind(name, SHEET_MIME, folder);
+      if(!id){ id = (await gApi('POST', `${DRIVE}?fields=id`, {name, mimeType:SHEET_MIME, parents:[folder]})).id; fresh = true; }
+    }
+    gSaveId(key, id);
+    const sheet = (await gApi('GET', `${SHEETS}/${id}?fields=sheets.properties(sheetId,title)`)).sheets[0].properties;
+    if(!fresh) return {id, title: sheet.title};
+    const sheetId = sheet.sheetId;
+    const requests = [
+      {updateSheetProperties:{properties:{sheetId, title:'Notes', gridProperties:{frozenRowCount:1}}, fields:'title,gridProperties.frozenRowCount'}},
+      {repeatCell:{range:{sheetId, startRowIndex:0, endRowIndex:1}, cell:{userEnteredFormat:{textFormat:{bold:true}}}, fields:'userEnteredFormat.textFormat.bold'}},
+      {repeatCell:{range:{sheetId, startColumnIndex:cols.wrap, endColumnIndex:cols.wrap+1}, cell:{userEnteredFormat:{wrapStrategy:'WRAP', verticalAlignment:'TOP'}}, fields:'userEnteredFormat(wrapStrategy,verticalAlignment)'}}
+    ].concat(cols.widths.map((w,i)=>({updateDimensionProperties:{range:{sheetId, dimension:'COLUMNS', startIndex:i, endIndex:i+1}, properties:{pixelSize:w}, fields:'pixelSize'}})));
+    await gApi('POST', `${SHEETS}/${id}:batchUpdate`, {requests});
+    return {id, title:'Notes'};
+  }
+  async function gWrite(book, rows){
+    const tab = "'" + book.title.replace(/'/g,"''") + "'";
+    await gApi('POST', `${SHEETS}/${book.id}/values/${encodeURIComponent(tab)}:clear`, {});
+    await gApi('PUT', `${SHEETS}/${book.id}/values/${encodeURIComponent(tab+'!A1')}?valueInputOption=RAW`, {values:rows});
+  }
+  const gWhen = t => t ? gDate.format(t)+' '+fmtTime.format(t) : '';
+  const gName = n => nameOf(n.clientId) || n.clientName || '';
+  const oldestFirst = list => list.slice().sort((a,b)=>a.createdAt-b.createdAt);
+
+  async function gSync(){
+    if(!GD || !gOn) return;
+    if(gBusy){ gAgain=true; return; }
+    if(navigator.onLine===false){ gIdle(); return; }
+    const dirty = ls.get('gDirty',[]);
+    if(!dirty.length){ gIdle(); return; }
+    gBusy = true; ls.set('gDirty', []);
+    const done = new Set();
+    let failed = null;
+    gStatus('Backing up to Google Drive…');
+    try{
+      const folder = await gFolder();
+      for(const cid of dirty){
+        const list = notes.filter(n=>n.clientId===cid);
+        const name = nameOf(cid) || (list[0] && list[0].clientName);
+        if(name){
+          const book = await gBook(cid, 'Case notes - '+name, folder, CLIENT_COLS);
+          await gWrite(book, [CLIENT_COLS.head, ...oldestFirst(list).map(n=>[gDate.format(n.createdAt), fmtTime.format(n.createdAt), n.text, gWhen(n.editedAt)])]);
+        }
+        done.add(cid);
+      }
+      const all = await gBook('all', 'All case notes', folder, ALL_COLS);
+      await gWrite(all, [ALL_COLS.head, ...oldestFirst(notes).map(n=>[gDate.format(n.createdAt), fmtTime.format(n.createdAt), gName(n), n.text, gWhen(n.editedAt)])]);
+      ls.set('gLast', Date.now());
+    }catch(e){
+      failed = e;
+      const back = ls.get('gDirty',[]);
+      dirty.forEach(cid=>{ if(!done.has(cid) && !back.includes(cid)) back.push(cid); });
+      if(!back.length && dirty.length) back.push(dirty[0]); // the All case notes file still needs writing
+      ls.set('gDirty', back);
+    }finally{
+      gBusy = false;
+      if(!failed) gIdle();
+      else if(failed.code==='consent_required'){ $('gConnect').hidden=false; gStatus('Google needs you to sign in again. Tap Connect Google Drive. Your notes are safe on this phone in the meantime.'); }
+      else gStatus(`Could not reach Google Drive${failed.status?` (error ${failed.status})`:''}. Notes will back up next time you open the app with signal.`);
+      if(gAgain){ gAgain=false; gSoon(); }
+    }
+  }
+
+  async function gConnect(){
+    $('gConnect').disabled = true; $('gWelcome').hidden = true; ls.set('gAsked', true);
+    gStatus('Opening Google sign-in…');
+    try{
+      gTok = null;
+      await gToken(true);
+      gOn = true; ls.set('gOn', true);
+      ls.set('gAccount', null); gLoadAccount();
+      toast('Connected to Google Drive'); $('storeBanner').hidden = true;
+      gDirtyAll(); gSync();
+    }catch(e){
+      $('gConnect').hidden = false;
+      gStatus(e && e.code==='cancelled' ? 'Not connected. Tap Connect Google Drive to try again.' : 'Google sign-in did not work. Check your connection and try again.');
+    }finally{ $('gConnect').disabled = false; }
+  }
+  if(GD){
+    $('gConnect').addEventListener('click', gConnect);
+    $('gWelcomeYes').addEventListener('click', gConnect);
+    $('gWelcomeNo').addEventListener('click', ()=>{ $('gWelcome').hidden=true; ls.set('gAsked', true); });
+    $('gSyncNow').addEventListener('click', ()=>{ gDirtyAll(); gSync(); });
+    $('gOff').addEventListener('click', ()=>{
+      gOn=false; gTok=null; ls.set('gOn', false); ls.set('gDirty', []);
+      $('gConnect').hidden=false; gStatus('Disconnected. Your notes are stored on this phone only. Notes already in Google Drive stay there.');
+    });
+    if(gOn){ gIdle(); if(!ls.get('gAccount', null)) setTimeout(gLoadAccount, 1500); } else { $('gConnect').hidden=false; gStatus($('driveStatus').textContent); if(!ls.get('gAsked', false)) $('gWelcome').hidden=false; }
+    window.addEventListener('online', gSync);
+    document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') gSync(); });
+    setInterval(gSync, 5*60*1000);
+  } else $('drivePanel').hidden = true;
   store={
     async saveClients(c){ ls.set('local:clients',c); },
-    async putNote(n){ const all=ls.get('local:notes',[]).filter(x=>x.id!==n.id); all.push(n); ls.set('local:notes',all); if(JSON.stringify(ls.get('local:notes',[])).indexOf(n.id)<0) throw {code:'quota_exceeded'}; },
-    async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); },
+    async putNote(n){ const all=ls.get('local:notes',[]).filter(x=>x.id!==n.id); all.push(n); ls.set('local:notes',all); if(JSON.stringify(ls.get('local:notes',[])).indexOf(n.id)<0) throw {code:'quota_exceeded'}; gDirty(n.clientId); },
+    async deleteNote(id){ ls.set('local:notes',ls.get('local:notes',[]).filter(x=>x.id!==id)); gDirty((notes.find(x=>x.id===id)||{}).clientId); },
   };
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
-  const lb=ls.get('lastBackup',0);
-  if(notes.length>=5 && Date.now()-lb>14*864e5){ const b=$('storeBanner'); b.hidden=false; b.textContent=lb?'It has been over two weeks since your last backup. Open History and tap Back up everything.':'Your notes are only on this phone. Open History and tap Back up everything to keep a copy safe.'; }
+  if(notes.length && GD && !gOn){ const b=$('storeBanner'); b.hidden=false; b.textContent='Your notes are only on this phone. Tap here to back them up to Google Drive.'; b.onclick=()=>{ b.hidden=true; showTab('history'); }; }
+  /* ---------- fingerprint lock ---------- */
+  // Play Store app: Android's own fingerprint/PIN prompt (AppLock plugin).
+  // Web app: a passkey on this phone, which Android unlocks with fingerprint or screen lock.
+  const NativeLock = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AppLock;
+  const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const unb64 = str => Uint8Array.from(atob(str), c=>c.charCodeAt(0));
+  const rand = n => crypto.getRandomValues(new Uint8Array(n));
+  const Lock = {
+    async available(){
+      if(NativeLock) return (await NativeLock.available()).available;
+      return !!(window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
+    },
+    async enroll(){
+      if(NativeLock){ await NativeLock.verify({reason:'Confirm it’s you to turn on the lock'}); return; }
+      const cred = await navigator.credentials.create({publicKey:{
+        challenge: rand(32), rp:{name:'Case Note Keeper'},
+        user:{id: rand(16), name:'Case Note Keeper lock', displayName:'Case Note Keeper lock'},
+        pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged'},
+        timeout:60000 }});
+      ls.set('lockCred', b64(cred.rawId));
+    },
+    async verify(){
+      if(NativeLock){ await NativeLock.verify({reason:'Unlock your case notes'}); return; }
+      const id = ls.get('lockCred', null); if(!id) throw new Error('no_lock');
+      await navigator.credentials.get({publicKey:{ challenge: rand(32), allowCredentials:[{type:'public-key', id: unb64(id), transports:['internal']}], userVerification:'required', timeout:60000 }});
+    }
+  };
+  let lockOn = ls.get('lockOn', false), lockBusy = false, hiddenAt = 0;
+  function lockPanel(){
+    $('lockOn').hidden = lockOn; $('lockOff').hidden = !lockOn;
+    $('lockStatus').textContent = lockOn
+      ? 'On. The app asks for your fingerprint (or your phone’s PIN) when you open it, and again after it has been in the background for a minute.'
+      : 'Off. Turn this on and the app asks for your fingerprint (or your phone’s PIN) every time you open it, so nobody else can read your clients’ notes.';
+  }
+  async function unlock(){
+    if(lockBusy) return; lockBusy = true;
+    try{ await Lock.verify(); $('lockScreen').hidden = true; document.documentElement.classList.remove('locked'); }
+    catch(e){ /* stays locked; the Unlock button tries again */ }
+    finally{ lockBusy = false; }
+  }
+  function lockNow(){ if(!lockOn) return; $('lockScreen').hidden = false; unlock(); }
+  $('unlockBtn').addEventListener('click', unlock);
+  $('lockReset').addEventListener('click', async()=>{
+    // Setting the lock up again needs the phone's own fingerprint or screen lock, so it is still the owner.
+    if(lockBusy) return; lockBusy = true;
+    try{ await Lock.enroll(); $('lockScreen').hidden = true; document.documentElement.classList.remove('locked'); toast('Fingerprint lock set up again'); }
+    catch(e){ toast('That didn’t work. Check your phone has a fingerprint or screen lock set up.'); }
+    finally{ lockBusy = false; }
+  });
+  $('lockOn').addEventListener('click', async()=>{
+    try{
+      if(!(await Lock.available())){ toast('Set up a fingerprint or screen lock in your phone’s settings first.'); return; }
+      lockBusy = true; await Lock.enroll();
+      lockOn = true; ls.set('lockOn', true); lockPanel(); toast('Fingerprint lock is on');
+    }catch(e){ toast('The lock was not turned on. Try again.'); }
+    finally{ lockBusy = false; }
+  });
+  $('lockOff').addEventListener('click', async()=>{
+    if(lockBusy) return; lockBusy = true;
+    try{ await Lock.verify(); lockOn = false; ls.set('lockOn', false); lockPanel(); toast('Fingerprint lock is off'); }
+    catch(e){ toast('Confirm with your fingerprint to turn the lock off.'); }
+    finally{ lockBusy = false; }
+  });
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState==='hidden'){ if(!lockBusy) hiddenAt = Date.now(); }
+    else if(lockOn && hiddenAt && !lockBusy && Date.now()-hiddenAt > 60*1000){ hiddenAt = 0; lockNow(); }
+  });
+  lockPanel();
+  if(lockOn){ $('lockScreen').hidden = false; unlock(); }
+
   if(selected) $('noteText').value=ls.get('draft:'+selected,'');
   showTab(ls.get('tab','log'));
 
@@ -525,7 +961,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     const b=$('storeBanner');
     if(unlocked || !window.CdvPurchase) return;
     const d=daysLeft();
-    if(d===0){ b.hidden=false; b.textContent='Your free month has ended. Tap here to unlock Shift Case Notes.'; b.onclick=showPaywall; }
+    if(d===0){ b.hidden=false; b.textContent='Your free month has ended. Tap here to unlock Case Note Keeper.'; b.onclick=showPaywall; }
     else if(d<=5){ b.hidden=false; b.textContent=d+(d===1?' day':' days')+' left in your free month. Tap here to unlock.'; b.onclick=showPaywall; }
   }
   document.addEventListener('deviceready', ()=>{
@@ -536,9 +972,9 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
       const p=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY);
       if(p && p.owned){ unlocked=true; ls.set('unlocked',true); $('paywall').hidden=true; $('storeBanner').hidden=true; }
       const price=p && p.pricing && p.pricing.price;
-      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Shift Case Notes for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and you can still read and export them.'; }
+      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Case Note Keeper for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
     };
-    store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Shift Case Notes is unlocked.'); }).productUpdated(refresh);
+    store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Case Note Keeper is unlocked.'); }).productUpdated(refresh);
     store.initialize([Platform.GOOGLE_PLAY]).then(()=>{ refresh(); trialNote(); });
     $('buyBtn').addEventListener('click',()=>{
       const offer=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY)?.getOffer();
@@ -547,6 +983,7 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:3px solid c
     });
     $('restoreBuy').addEventListener('click',()=>{ store.restorePurchases().then(()=>{ refresh(); if(!unlocked) toast('No purchase found for this Google account.'); }); });
   }, false);
+  if(typeof gSync==="function") gSync();
 })();
 </script>
 </body>

@@ -101,6 +101,7 @@ button.client-row{width:100%;font:inherit;color:var(--ink);text-align:left;curso
 .chat-input{display:flex;gap:8px;align-items:flex-end}
 .chat-input textarea{flex:1;resize:none;min-height:48px;max-height:140px}
 .chat-input .btn{flex:none}
+.chat-status{font-size:.85rem;color:var(--muted);min-height:1.2em;margin:0}
 .breathe{width:110px;height:110px;margin:6px auto;border-radius:50%;background:var(--accent-soft);border:3px solid var(--accent);transform:scale(.6);transition:transform 4s ease-in-out}
 .breathe.big{transform:scale(1)}
 .breathe-wrap{text-align:center}
@@ -263,8 +264,10 @@ html.locked .wrap{visibility:hidden}
       <button class="btn small" id="chatBreathe">Breathing exercise</button>
       <button class="btn small" id="chatHelp">Support lines</button>
     </div>
+    <p class="chat-status" id="chatStatus" aria-live="polite"></p>
     <form class="chat-input" id="chatForm">
       <textarea id="chatText" rows="2" placeholder="Type or tap the keyboard microphone and talk…"></textarea>
+      <button class="btn rec" id="chatTalk" type="button" hidden>🎤 Talk</button>
       <button class="btn primary" id="chatSend" type="submit">Send</button>
     </form>
   </div>
@@ -303,6 +306,62 @@ html.locked .wrap{visibility:hidden}
 
   /* ---------- tabs ---------- */
   document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.tab==='clients') viewClient=null; showTab(b.dataset.tab); }));
+  /* ---------- Talk: speak to the debrief chat and hear it answer ---------- */
+  // Uses the phone's own speech services. Replies are read aloud, then it listens for the next thing you say.
+  const Talk = (()=>{
+    const P = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() ? window.Capacitor.Plugins : {};
+    const NSR = P.SpeechRecognition, NTTS = P.TextToSpeech;
+    const WSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const canHear = !!(NSR || WSR), canSpeak = !!(NTTS || window.speechSynthesis);
+    let on=false, quiet=0, onText=null, rec=null;
+    const status = m => { const el=$('chatStatus'); if(el) el.textContent = m||''; };
+    const btn = () => $('chatTalk');
+    function setOn(v){ on=v; quiet=0; const b=btn(); b.classList.toggle('on',v); b.textContent = v ? '■ Stop' : '🎤 Talk'; if(!v){ status(''); } }
+    function speak(text){
+      return new Promise(res=>{
+        if(!canSpeak) return res();
+        if(NTTS){ NTTS.speak({text, lang:'en-AU', rate:0.95, pitch:1.0}).then(res, res); return; }
+        const u=new SpeechSynthesisUtterance(text); u.lang='en-AU'; u.rate=0.95;
+        const v=speechSynthesis.getVoices().find(x=>x.lang==='en-AU') || speechSynthesis.getVoices().find(x=>/^en/.test(x.lang)); if(v) u.voice=v;
+        u.onend=res; u.onerror=res; speechSynthesis.cancel(); speechSynthesis.speak(u);
+      });
+    }
+    function hush(){ try{ if(NTTS) NTTS.stop(); else if(window.speechSynthesis) speechSynthesis.cancel(); }catch{} }
+    async function listenOnce(){
+      if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }
+      return new Promise((res,rej)=>{
+        rec=new WSR(); rec.lang='en-AU'; rec.continuous=false; rec.interimResults=false; let got='';
+        rec.onresult=ev=>{ got=Array.from(ev.results).map(r=>r[0].transcript).join(' '); };
+        rec.onerror=ev=>{ if(ev.error==='not-allowed'||ev.error==='service-not-allowed') rej(new Error('blocked')); };
+        rec.onend=()=>{ rec=null; res(got); };
+        rec.start();
+      });
+    }
+    async function listen(){
+      if(!on) return;
+      status('Listening… speak now');
+      let text='';
+      try{ text = (await listenOnce()).trim(); }
+      catch(e){ setOn(false); toast(e && e.message==='blocked' ? 'The microphone is blocked. Allow it in your phone settings to talk to Debrief.' : 'Could not hear you. Tap Talk to try again, or type instead.'); return; }
+      if(!on) return;
+      if(!text){ if(++quiet>=2){ setOn(false); status('Paused. Tap Talk when you’re ready.'); return; } return listen(); }
+      quiet=0; status(''); onText && onText(text.charAt(0).toUpperCase()+text.slice(1));
+    }
+    return {
+      canHear,
+      init(cb){ onText=cb; const b=btn(); if(!canHear) return; b.hidden=false;
+        b.addEventListener('click', async()=>{
+          if(on){ setOn(false); hush(); try{ if(NSR) NSR.stop(); else if(rec) rec.abort(); }catch{} return; }
+          if(NSR){ try{ let p=await NSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await NSR.requestPermissions(); if(p.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to talk to Debrief.'); return; } }catch{} }
+          setOn(true); listen();
+        });
+      },
+      // Called with each new reply: read it out, then listen for the answer.
+      async heard(text){ if(!on) return; status('Speaking…'); await speak(text.replace(/•/g,'')); if(on) listen(); },
+      stop(){ setOn(false); hush(); try{ if(NSR) NSR.stop(); else if(rec) rec.abort(); }catch{} }
+    };
+  })();
+
   /* ---------- Debrief: a private listener that runs only on this phone ---------- */
   // Nothing typed here is stored or sent anywhere; closing the chat wipes it.
   const Debrief = (()=>{
@@ -321,7 +380,7 @@ html.locked .wrap{visibility:hidden}
     let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null;
     const log = () => $('chatLog');
     function add(text, who, cls){ const d=document.createElement('div'); d.className='msg '+who+(cls?' '+cls:''); if(who==='me') d.textContent=text; else d.innerHTML=text; log().appendChild(d); log().scrollTop=log().scrollHeight; return d; }
-    function say(html, cls){ const t=add('…', 'bot', 'typing'); setTimeout(()=>{ t.classList.remove('typing'); t.innerHTML=html; if(cls) t.classList.add(cls); log().scrollTop=log().scrollHeight; }, 650); }
+    function say(html, cls){ const t=add('…', 'bot', 'typing'); setTimeout(()=>{ t.classList.remove('typing'); t.innerHTML=html; if(cls) t.classList.add(cls); log().scrollTop=log().scrollHeight; Talk.heard(t.textContent); }, 650); }
     function feeling(t){ for(const [re,f] of FEELINGS) if(re.test(t)) return f; return null; }
     function reply(raw){
       const t=raw.toLowerCase();
@@ -349,16 +408,19 @@ html.locked .wrap{visibility:hidden}
     function open(){
       stage=0; told=false; incidentTold=false; listenAt=0; stopBreathing(); log().innerHTML=''; $('chatText').value='';
       $('debrief').hidden=false;
-      say('Hi. Sounds like it might have been a tough one. This is a private space to offload. Nothing here is saved, and there’s no need to use names.\n\nWhat happened?');
+      say('Are you OK?\n\nThis is a private space to offload after a hard session. Nothing here is saved, and there’s no need to use names. Tell me what happened, or tap Talk and just speak.');
       setTimeout(()=>$('chatText').focus(), 300);
     }
-    function close(){ stopBreathing(); log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
+    function close(){ Talk.stop(); stopBreathing(); log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
+    function userSays(v){ add(v,'me'); reply(v); }
+
     $('debriefBtn').addEventListener('click', open);
     $('debriefDone').addEventListener('click', close);
     $('chatHelp').addEventListener('click', ()=>say('You don’t have to handle this alone. These are free and confidential:\n'+LINES+'\n\nYour workplace’s EAP is also free counselling. Ask your supervisor for the number.'));
     $('chatBreathe').addEventListener('click', ()=>{ say('Let’s slow things down. Follow the circle: in for 4, hold for 4, out for 4, hold for 4. Three rounds.'); setTimeout(breathe, 900); });
-    $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; add(v,'me'); $('chatText').value=''; reply(v); });
+    $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; $('chatText').value=''; userSays(v); });
     $('chatText').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); $('chatForm').requestSubmit(); } });
+    Talk.init(userSays);
     return {open, close};
   })();
 

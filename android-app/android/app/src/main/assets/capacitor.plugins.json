@@ -4,6 +4,10 @@
 		"classpath": "com.getcapacitor.community.speechrecognition.SpeechRecognition"
 	},
 	{
+		"pkg": "@capacitor-community/text-to-speech",
+		"classpath": "com.getcapacitor.community.tts.TextToSpeechPlugin"
+	},
+	{
 		"pkg": "@capacitor/filesystem",
 		"classpath": "com.capacitorjs.plugins.filesystem.FilesystemPlugin"
 	},
