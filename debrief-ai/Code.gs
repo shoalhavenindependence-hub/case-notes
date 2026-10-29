@@ -8,11 +8,17 @@
  * Set up once:
  *   1. Project Settings > Script Properties > Add: ANTHROPIC_API_KEY = your key
  *   2. Deploy > New deployment > Web app, Execute as: Me, Who has access: Anyone
+ *
+ * Carla's natural voice (optional): Google Cloud Text-to-Speech.
+ *   Add Script Property GOOGLE_TTS_KEY = an API key from a Google Cloud project with the
+ *   Text-to-Speech API turned on. Optional CARLA_VOICE changes the voice (default below).
+ *   Without the key, the app uses the phone's own voice.
  */
 
 const MODEL = 'claude-opus-5-5';      // or 'claude-sonnet-5-5' / 'claude-haiku-5-5'
 const MONTHLY_LIMIT = 300;            // messages per phone per month
 const DAILY_LIMIT_ALL = 2000;         // messages per day across every phone, to cap spend
+const CARLA_VOICE = 'en-AU-Chirp3-HD-Aoede';  // a calm Australian voice; override with the CARLA_VOICE property
 
 const SYSTEM = [
   'You are Carla, the AI debrief companion inside Case Note Keeper, an app used by people who work in health and community care, mostly in Australia: disability support workers, aged care and home care workers, assistants in nursing and nurses, mental health and community workers, youth and residential care workers, allied health assistants and family carers.',
@@ -44,6 +50,13 @@ function doPost(e) {
     const req = JSON.parse(e.postData.contents);
     if (req.action === 'ping') return out_({ok: true});
     const device = String(req.device || '').slice(0, 64);
+    if (req.action === 'speak') {
+      const say = String(req.text || '').slice(0, 1500);
+      if (!device || !say) return out_({error: 'bad_request'});
+      if (!underLimits_(device)) return out_({error: 'limit'});
+      const audio = synth_(say);
+      return out_(audio ? {audio: audio} : {error: 'no_voice'});
+    }
     const messages = req.messages;
     if (!device || !Array.isArray(messages) || !messages.length || messages.length > 80) return out_({error: 'bad_request'});
     if (!underLimits_(device)) return out_({error: 'limit'});
@@ -75,13 +88,41 @@ function doPost(e) {
     if (body.stop_reason === 'refusal') return out_({error: 'refusal'});
     const text = (body.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n\n').trim();
     // The app keeps the full assistant turn (including any thinking blocks) and sends it back unchanged next time.
-    return out_({text: text, content: body.content});
+    return out_({text: text, content: body.content, audio: req.voice ? synth_(text) : null});
   } catch (err) {
     return out_({error: 'server'});
   }
 }
 
 function doGet() { return out_({ok: true}); }
+
+/** Turns Carla's words into a natural-sounding MP3 (base64), or null if the voice isn't set up. */
+function synth_(text) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const key = props.getProperty('GOOGLE_TTS_KEY');
+    if (!key) return null;
+    const voice = props.getProperty('CARLA_VOICE') || CARLA_VOICE;
+    const clean = String(text).replace(/[•*#]/g, '').replace(/\s+/g, ' ').trim().slice(0, 1500);
+    const call = audioConfig => UrlFetchApp.fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=' + encodeURIComponent(key), {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      payload: JSON.stringify({input: {text: clean}, voice: {languageCode: voice.slice(0, 5), name: voice}, audioConfig: audioConfig})
+    });
+    let res = call({audioEncoding: 'MP3', speakingRate: 0.9});
+    if (res.getResponseCode() !== 200) res = call({audioEncoding: 'MP3'});
+    if (res.getResponseCode() !== 200) return null;
+    return JSON.parse(res.getContentText()).audioContent || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/** Run this from the editor to check the voice works: View > Logs shows OK or the error. */
+function testVoice() {
+  const key = PropertiesService.getScriptProperties().getProperty('GOOGLE_TTS_KEY');
+  if (!key) { Logger.log('Add the GOOGLE_TTS_KEY script property first.'); return; }
+  Logger.log(synth_('Hi, I am Carla.') ? 'OK: Carla\'s voice is working.' : 'Not working yet: check the key and that the Text-to-Speech API is turned on.');
+}
 
 function underLimits_(device) {
   const lock = LockService.getScriptLock();
