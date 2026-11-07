@@ -591,8 +591,11 @@ html.locked .wrap{visibility:hidden}
   $('whenInput').addEventListener('change',()=>{ const v=$('whenInput').value; customWhen = v? new Date(v).getTime() : null; tick(); });
   $('whenNow').addEventListener('click',()=>{ customWhen=null; $('timeRow').hidden=true; tick(); });
 
+  let stopDictation=()=>{};
   $('saveNote').addEventListener('click',async()=>{
     const text=$('noteText').value.trim(); const c=clients.find(x=>x.id===selected); if(!text||!c) return;
+    // Dictation still running would put the words back after the box clears, so stop it first.
+    stopDictation(); clearTimeout(saveDraft._t);
     const n={id:uidGen(),clientId:c.id,clientName:c.name,text,createdAt:customWhen??Date.now(),editedAt:null};
     $('saveNote').disabled=true;
     try{ await store.putNote(n); notes=[n,...notes.filter(x=>x.id!==n.id)].sort((a,b)=>b.createdAt-a.createdAt);
@@ -655,6 +658,7 @@ html.locked .wrap{visibility:hidden}
     let rec=null, listening=false, base='', fails=0, restarts=0;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
     const stopAll=msg=>{ listening=false; if(rec){ try{rec.abort()}catch{} rec=null; } setBtn(false); if(msg) toast(msg); };
+    stopDictation=()=>{ if(rec){ rec.onresult=rec.onend=rec.onerror=null; } stopAll(); base=''; };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
     // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
     function tidy(t){
