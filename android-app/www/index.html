@@ -453,10 +453,10 @@ html.locked .wrap{visibility:hidden}
       if(stage===0) out = 'Thanks for telling me. That sounds like a lot to deal with. '+(f?valid:'')+'How are you feeling about it now?';
       else if(stage===1) out = (valid || 'Whatever you’re feeling is a normal reaction to a hard session. ')+'Is there anything you handled well, even something small?';
       else if(stage===2) out = (NO.test(t) ? 'That’s okay. Hard days don’t always have a bright side, and you still showed up. ' : 'That counts. Noticing what went right matters. ')+'What do you need right now? A break, some food, a chat with someone, rest?';
-      else if(stage===3) out = 'That sounds like a good plan. A few things that can help after a hard session:\n• Take three slow breaths and have some water\n• Talk it through with your supervisor or a colleague you trust\n• If it keeps playing on your mind, your workplace’s EAP offers free, confidential counselling\n\nYou can keep typing if there’s more, or tap Finish when you’re ready.';
+      else if(stage===3) out = 'That sounds like a good plan. A few things that can help after a hard session:\n• Take three slow breaths and have some water\n• Talk it through with a peer you trust or your professional supervisor\n• If it keeps playing on your mind, a GP can set up a mental health plan for subsidised counselling\n\nYou can keep typing if there’s more, or tap Finish when you’re ready.';
       else { out = valid + LISTEN[listenAt++ % LISTEN.length]; }
       stage++;
-      if(!incidentTold && INCIDENT.test(t)){ incidentTold=true; out += '\n\nIf anyone was hurt or this might be a reportable incident, remember to let your supervisor know and fill in an incident report.'; }
+      if(!incidentTold && INCIDENT.test(t)){ incidentTold=true; out += '\n\nIf anyone was hurt or this might be a reportable incident, remember to write it up in factual case notes and report it the right way for this job, such as to the client’s family, guardian or support coordinator, your platform, or the NDIS Commission.'; }
       say(out);
     }
     function stopBreathing(){ if(breathing){ clearInterval(breathing); breathing=null; } }
@@ -491,7 +491,7 @@ html.locked .wrap{visibility:hidden}
 
     $('debriefBtn').addEventListener('click', open);
     $('debriefDone').addEventListener('click', close);
-    $('chatHelp').addEventListener('click', ()=>say('You don’t have to handle this alone. These are free and confidential:\n'+LINES+'\n\nYour workplace’s EAP is also free counselling. Ask your supervisor for the number.'));
+    $('chatHelp').addEventListener('click', ()=>say('You don’t have to handle this alone. These are free and confidential:\n'+LINES+'\n\nA GP can also set up a mental health plan for subsidised counselling.'));
     $('chatBreathe').addEventListener('click', ()=>{ say('Let’s slow things down. Follow the circle: in for 4, hold for 4, out for 4, hold for 4. Three rounds.'); setTimeout(breathe, 900); });
     $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; $('chatText').value=''; userSays(v); });
     $('chatText').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); $('chatForm').requestSubmit(); } });
