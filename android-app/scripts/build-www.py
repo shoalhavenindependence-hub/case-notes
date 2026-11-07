@@ -125,7 +125,7 @@ sub('</style>', '''.paywall{position:fixed;inset:0;z-index:30;background:color-m
 sub('''  showTab(ls.get('tab','log'));
 ''', '''  showTab(ls.get('tab','log'));
 
-  /* ---------- free trial and purchase (Google Play) ---------- */
+  /* ---------- free trial and purchase (Google Play or the App Store) ---------- */
   const TRIAL_DAYS = 30;
   const PRODUCT_ID = 'full_unlock';
   let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
@@ -146,21 +146,24 @@ sub('''  showTab(ls.get('tab','log'));
   document.addEventListener('deviceready', ()=>{
     if(!window.CdvPurchase) return;
     const { store, ProductType, Platform } = CdvPurchase;
-    store.register([{ id: PRODUCT_ID, type: ProductType.NON_CONSUMABLE, platform: Platform.GOOGLE_PLAY }]);
+    // iPhone app buys through Apple's App Store, Android app through Google Play.
+    const IOS = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()==='ios';
+    const PF = IOS ? Platform.APPLE_APPSTORE : Platform.GOOGLE_PLAY, SHOP = IOS ? 'The App Store' : 'Google Play';
+    store.register([{ id: PRODUCT_ID, type: ProductType.NON_CONSUMABLE, platform: PF }]);
     const refresh=()=>{
-      const p=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY);
+      const p=store.get(PRODUCT_ID, PF);
       if(p && p.owned){ unlocked=true; ls.set('unlocked',true); $('paywall').hidden=true; $('storeBanner').hidden=true; }
       const price=p && p.pricing && p.pricing.price;
-      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Case Note Keeper for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone and in your Google Drive, and you can still read them.'; }
+      if(price){ $('buyBtn').textContent='Unlock for '+price; $('payText').textContent='Unlock Case Note Keeper for a one-off '+price+' to keep logging notes. Your saved notes stay on this phone'+(GD?' and in your Google Drive':'')+', and you can still read them.'; }
     };
     store.when().approved(t=>t.finish()).finished(()=>{ refresh(); toast('Thanks! Case Note Keeper is unlocked.'); }).productUpdated(refresh);
-    store.initialize([Platform.GOOGLE_PLAY]).then(()=>{ refresh(); trialNote(); });
+    store.initialize([PF]).then(()=>{ refresh(); trialNote(); });
     $('buyBtn').addEventListener('click',()=>{
-      const offer=store.get(PRODUCT_ID, Platform.GOOGLE_PLAY)?.getOffer();
-      if(!offer){ toast('Google Play is not ready yet. Check your connection and try again.'); return; }
+      const offer=store.get(PRODUCT_ID, PF)?.getOffer();
+      if(!offer){ toast(SHOP+' is not ready yet. Check your connection and try again.'); return; }
       offer.order().then(err=>{ if(err && err.code!==CdvPurchase.ErrorCode.PAYMENT_CANCELLED) toast('The purchase did not go through. Please try again.'); });
     });
-    $('restoreBuy').addEventListener('click',()=>{ store.restorePurchases().then(()=>{ refresh(); if(!unlocked) toast('No purchase found for this Google account.'); }); });
+    $('restoreBuy').addEventListener('click',()=>{ store.restorePurchases().then(()=>{ refresh(); if(!unlocked) toast(IOS?'No purchase found for this Apple ID.':'No purchase found for this Google account.'); }); });
   }, false);
 ''')
 
