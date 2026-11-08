@@ -70,23 +70,24 @@ tidy = re.search(r"    // Rambler-style clean-up.*?\n    function tidy\(t\)\{.*?
 native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
   if (NSR) {
     const btn=$('recBtn'); btn.hidden=false;
-    let listening=false, base='', cur='', quiet=0, restarts=0, hooked=false;
+    let listening=false, active=false, base='', cur='', quiet=0, restarts=0, hooked=false;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\\s*$/,' ')+b.replace(/^\\s+/,''));
 ''' + tidy + '''    const show=()=>{ $('noteText').value=joinText(base,cur); $('noteText').dispatchEvent(new Event('input')); };
-    const stopAll=msg=>{ listening=false; NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
+    const stopAll=msg=>{ listening=false; if(active){ active=false; if(cur){ base=joinText(base, tidy(cur)); cur=''; show(); } } NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
     async function hook(){
       if(hooked) return; hooked=true;
-      await NSR.addListener('partialResults', d=>{ if(d && d.matches && d.matches[0]){ cur=d.matches[0]; quiet=0; show(); } });
+      await NSR.addListener('partialResults', d=>{ if(!active) return; if(d && d.matches && d.matches[0]){ cur=d.matches[0]; quiet=0; show(); } });
       await NSR.addListener('listeningState', d=>{
-        if(!d || d.status!=='stopped') return;
+        if(!d || d.status!=='stopped' || !active) return;
+        active=false;
         if(cur){ base=joinText(base, tidy(cur)); cur=''; show(); } else quiet++;
         // Android stops after each pause; carry on until Stop, and give up after two quiet rounds.
         if(listening && quiet<2 && restarts<30){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },300); }
         else if(listening){ listening=false; setBtn(false); }
       });
     }
-    function startOnce(){ NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.')); }
+    function startOnce(){ active=true; NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.')); }
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
       if(listening){ stopAll(); return; }
