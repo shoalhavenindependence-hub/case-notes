@@ -167,6 +167,33 @@ sub('''  showTab(ls.get('tab','log'));
   }, false);
 ''')
 
+# --- iPhone: Carla's listening ---
+# iOS speech recognition never finishes by itself, so listen with live words
+# and stop after a short pause (Android keeps its own behaviour).
+sub("      if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }",
+"""      if(NSR && window.Capacitor.getPlatform()==='ios') return new Promise(async res=>{
+        let txt='', last=Date.now(), done=false, h=null;
+        const finish=async()=>{ if(done) return; done=true; clearInterval(t); try{ await NSR.stop(); }catch{} try{ h && h.remove(); }catch{} res(txt); };
+        const t=setInterval(()=>{ const idle=Date.now()-last; if(!on || (txt && idle>1500) || (!txt && idle>9000)) finish(); }, 250);
+        try{ h=await NSR.addListener('partialResults', d=>{ const m=d && d.matches && d.matches[0]; if(m && m!==txt){ txt=m; last=Date.now(); status('“'+m+'”'); } });
+             await NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}); }
+        catch(e){ finish(); }
+      });
+      if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }""")
+
+# --- iPhone: say Face ID instead of fingerprint ---
+sub('</body>', """<script>
+(function(){
+  if(!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()==='ios')) return;
+  const swaps=[[/your fingerprint \\(or your phone’s PIN\\)/g,'Face ID (or your passcode)'],[/your fingerprint or your phone’s PIN/g,'Face ID or your passcode'],
+    [/a fingerprint or screen lock/g,'Face ID or a passcode'],[/with your fingerprint/g,'with Face ID'],[/your fingerprint/g,'Face ID'],[/Fingerprint/g,'Face ID'],[/fingerprint/g,'Face ID']];
+  const fix=n=>{ if(n.nodeType===3){ let v=n.nodeValue, w=v; if(!/ingerprint/.test(v)) return; swaps.forEach(([a,b])=>{ w=w.replace(a,b); }); if(w!==v) n.nodeValue=w; } else if(n.childNodes) n.childNodes.forEach(fix); };
+  fix(document.body);
+  new MutationObserver(ms=>ms.forEach(m=>{ if(m.type==='characterData') fix(m.target); else m.addedNodes.forEach(fix); })).observe(document.body,{subtree:true,childList:true,characterData:true});
+})();
+</script>
+</body>""")
+
 out = ROOT / 'android-app' / 'www' / 'index.html'
 out.write_text(s)
 print('wrote', out.relative_to(ROOT), len(s), 'bytes')
