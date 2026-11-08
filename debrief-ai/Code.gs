@@ -18,7 +18,7 @@
 // Carla's model. To try another one, add Script Property CARLA_MODEL = claude-haiku-5-5 (or
 // claude-sonnet-5-5). Delete the property to go back to this default. No redeploy needed.
 const DEFAULT_MODEL = 'claude-opus-5-5';
-const MONTHLY_LIMIT = 300;            // messages per phone per month
+const MONTHLY_LIMIT = 200;            // messages per phone per month (about 20 chats)
 const DAILY_LIMIT_ALL = 2000;         // messages per day across every phone, to cap spend
 const CARLA_VOICE = 'en-AU-Chirp3-HD-Aoede';  // a calm Australian voice; override with the CARLA_VOICE property
 

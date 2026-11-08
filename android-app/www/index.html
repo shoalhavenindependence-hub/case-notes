@@ -1046,10 +1046,14 @@ html.locked .wrap{visibility:hidden}
   showTab(ls.get('tab','log'));
 
   /* ---------- free trial and purchase (Google Play or the App Store) ---------- */
+  // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall. Everyone who uses the app
+  // while this is true is marked as an early user, and early users stay free when a price comes in.
+  const FREE_LAUNCH = true;
+  if (FREE_LAUNCH) ls.set('earlyUser', true);
   const TRIAL_DAYS = 30;
   const PRODUCT_ID = 'full_unlock';
   let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
-  let unlocked = ls.get('unlocked', false);
+  let unlocked = ls.get('unlocked', false) || ls.get('earlyUser', false);
   const daysLeft = () => Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now()-firstOpen)/864e5));
   const locked = () => !unlocked && daysLeft()===0 && !!window.CdvPurchase;
   function showPaywall(){ $('paywall').hidden=false; }
@@ -1064,7 +1068,7 @@ html.locked .wrap{visibility:hidden}
     else if(d<=5){ b.hidden=false; b.textContent=d+(d===1?' day':' days')+' left in your free month. Tap here to unlock.'; b.onclick=showPaywall; }
   }
   document.addEventListener('deviceready', ()=>{
-    if(!window.CdvPurchase) return;
+    if(!window.CdvPurchase || FREE_LAUNCH) return;
     const { store, ProductType, Platform } = CdvPurchase;
     // iPhone app buys through Apple's App Store, Android app through Google Play.
     const IOS = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()==='ios';
