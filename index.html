@@ -594,7 +594,7 @@ html.locked .wrap{visibility:hidden}
 
   let stopDictation=()=>{};
   $('clearNote').addEventListener('click',()=>{
-    if(!$('noteText').value.trim() || !confirm('Clear this note? It has not been saved.')) return;
+    if(!$('noteText').value.trim()) return;
     stopDictation(); clearTimeout(saveDraft._t);
     $('noteText').value=''; saveDraft(); $('saveNote').disabled=$('clearNote').disabled=true; $('noteText').focus();
   });
