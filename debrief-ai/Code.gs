@@ -19,6 +19,7 @@
 // claude-sonnet-5-5). Delete the property to go back to this default. No redeploy needed.
 const DEFAULT_MODEL = 'claude-opus-5-5';
 const MONTHLY_LIMIT = 200;            // messages per phone per month (about 20 chats)
+const FOUNDER_LIMIT = 50;             // first 50 iPhones and first 50 Android phones: free for life
 const DAILY_LIMIT_ALL = 2000;         // messages per day across every phone, to cap spend
 const CARLA_VOICE = 'en-AU-Chirp3-HD-Aoede';  // a calm Australian voice; override with the CARLA_VOICE property
 
@@ -56,6 +57,7 @@ function doPost(e) {
     const req = JSON.parse(e.postData.contents);
     if (req.action === 'ping') return out_({ok: true});
     const device = String(req.device || '').slice(0, 64);
+    if (req.action === 'founder') return out_(founder_(device, String(req.platform || '')));
     if (req.action === 'speak') {
       const say = String(req.text || '').slice(0, 1500);
       if (!device || !say) return out_({error: 'bad_request'});
@@ -165,4 +167,24 @@ function clearOldCounts() {
 
 function out_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Founding members: the first FOUNDER_LIMIT phones on each platform to open the app get a
+// number and are free for life. Counts are in Script Properties founders_ios / founders_android.
+function founder_(device, platform) {
+  if (!device || (platform !== 'ios' && platform !== 'android')) return {error: 'bad_request'};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const mine = props.getProperty('f_' + device);
+    if (mine) return {founder: true, number: Number(mine.split(':')[1])};
+    const count = Number(props.getProperty('founders_' + platform) || 0);
+    if (count >= FOUNDER_LIMIT) return {founder: false};
+    props.setProperty('founders_' + platform, String(count + 1));
+    props.setProperty('f_' + device, platform + ':' + (count + 1));
+    return {founder: true, number: count + 1};
+  } finally {
+    lock.releaseLock();
+  }
 }
