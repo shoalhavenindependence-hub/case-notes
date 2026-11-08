@@ -15,8 +15,10 @@
  *   Without the key, the app uses the phone's own voice.
  */
 
-const MODEL = 'claude-opus-5-5';      // or 'claude-sonnet-5-5' / 'claude-haiku-5-5'
-const MONTHLY_LIMIT = 300;            // messages per phone per month
+// Carla's model. To try another one, add Script Property CARLA_MODEL = claude-haiku-5-5 (or
+// claude-sonnet-5-5). Delete the property to go back to this default. No redeploy needed.
+const DEFAULT_MODEL = 'claude-opus-5-5';
+const MONTHLY_LIMIT = 200;            // messages per phone per month (about 20 chats)
 const DAILY_LIMIT_ALL = 2000;         // messages per day across every phone, to cap spend
 const CARLA_VOICE = 'en-AU-Chirp3-HD-Aoede';  // a calm Australian voice; override with the CARLA_VOICE property
 
@@ -68,6 +70,18 @@ function doPost(e) {
     const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
     if (!key) return out_({error: 'not_set_up'});
 
+    const model = (PropertiesService.getScriptProperties().getProperty('CARLA_MODEL') || DEFAULT_MODEL).trim();
+    const payload = {
+      model: model,
+      max_tokens: 2000,
+      // Prompt caching: Carla's instructions and the chat so far are reused at a small fraction of the price.
+      system: [{type: 'text', text: SYSTEM, cache_control: {type: 'ephemeral'}}],
+      cache_control: {type: 'ephemeral'},
+      output_config: {effort: 'low'},
+      messages: messages
+    };
+    // Haiku has no server-side fallback, so only send it for the other models.
+    if (model.indexOf('haiku') < 0) payload.fallbacks = 'default';
     const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post',
       contentType: 'application/json',
@@ -77,14 +91,7 @@ function doPost(e) {
         'anthropic-version': '2026-10-21',
         'anthropic-beta': 'server-side-fallback-2026-07-01'
       },
-      payload: JSON.stringify({
-        model: MODEL,
-        max_tokens: 2000,
-        system: SYSTEM,
-        output_config: {effort: 'low'},
-        fallbacks: 'default',
-        messages: messages
-      })
+      payload: JSON.stringify(payload)
     });
     const code = res.getResponseCode();
     const body = JSON.parse(res.getContentText());
