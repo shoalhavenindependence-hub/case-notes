@@ -165,6 +165,7 @@ html.locked .wrap{visibility:hidden}
         <button class="btn small" id="changeTime">Change time</button>
         <button class="btn small" id="clearNote" disabled>Clear</button>
       </div>
+      <div class="row" id="clearAsk" hidden><span class="confirm">Clear this note? It has not been saved. <button class="btn small danger" id="clearYes">Clear</button><button class="btn small" id="clearNo">Keep</button></span></div>
     </div>
 
     <div>
@@ -526,6 +527,7 @@ html.locked .wrap{visibility:hidden}
     $('padTitle').textContent = sel ? 'Note for '+sel.name : (ready && !activeClients().length ? 'Add your first client' : 'Pick a client first');
     $('noteText').disabled = !sel;
     $('saveNote').disabled = $('clearNote').disabled = !sel || !$('noteText').value.trim();
+    if($('clearNote').disabled) $('clearAsk').hidden=true;
 
     const todays = notes.filter(n=>dayKey(n.createdAt)===today);
     $('todayCount').textContent = todays.length ? todays.length+(todays.length===1?' note':' notes') : '';
@@ -593,9 +595,10 @@ html.locked .wrap{visibility:hidden}
   $('whenNow').addEventListener('click',()=>{ customWhen=null; $('timeRow').hidden=true; tick(); });
 
   let stopDictation=()=>{};
-  $('clearNote').addEventListener('click',()=>{
-    if(!$('noteText').value.trim() || !confirm('Clear this note? It has not been saved.')) return;
-    stopDictation(); clearTimeout(saveDraft._t);
+  $('clearNote').addEventListener('click',()=>{ if($('noteText').value.trim()) $('clearAsk').hidden=false; });
+  $('clearNo').addEventListener('click',()=>{ $('clearAsk').hidden=true; });
+  $('clearYes').addEventListener('click',()=>{
+    $('clearAsk').hidden=true; stopDictation(); clearTimeout(saveDraft._t);
     $('noteText').value=''; saveDraft(); $('saveNote').disabled=$('clearNote').disabled=true; $('noteText').focus();
   });
   $('saveNote').addEventListener('click',async()=>{
