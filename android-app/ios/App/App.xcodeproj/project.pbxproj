@@ -18,6 +18,7 @@
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 		C0DE00000000000000000001 /* AppLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000002 /* AppLockPlugin.swift */; };
 		C0DE00000000000000000003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000004 /* MainViewController.swift */; };
+		C0DE00000000000000000005 /* GoogleDrivePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000006 /* GoogleDrivePlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 		C0DE00000000000000000002 /* AppLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockPlugin.swift; sourceTree = "<group>"; };
 		C0DE00000000000000000004 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
+		C0DE00000000000000000006 /* GoogleDrivePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDrivePlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,6 +84,7 @@
 				9582B6842FE996800072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				C0DE00000000000000000006 /* GoogleDrivePlugin.swift */,
 				C0DE00000000000000000004 /* MainViewController.swift */,
 				C0DE00000000000000000002 /* AppLockPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -220,6 +223,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6852FE996820072D4E8 /* SceneDelegate.swift in Sources */,
+				C0DE00000000000000000005 /* GoogleDrivePlugin.swift in Sources */,
 				C0DE00000000000000000003 /* MainViewController.swift in Sources */,
 				C0DE00000000000000000001 /* AppLockPlugin.swift in Sources */,
 			);
