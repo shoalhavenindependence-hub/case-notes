@@ -163,6 +163,7 @@ html.locked .wrap{visibility:hidden}
         <button class="btn primary" id="saveNote" disabled>Save note</button>
         <button class="btn rec" id="recBtn" hidden>● Dictate</button>
         <button class="btn small" id="changeTime">Change time</button>
+        <button class="btn small" id="clearNote" disabled>Clear</button>
       </div>
     </div>
 
@@ -524,7 +525,7 @@ html.locked .wrap{visibility:hidden}
     const sel = clients.find(c=>c.id===selected);
     $('padTitle').textContent = sel ? 'Note for '+sel.name : (ready && !activeClients().length ? 'Add your first client' : 'Pick a client first');
     $('noteText').disabled = !sel;
-    $('saveNote').disabled = !sel || !$('noteText').value.trim();
+    $('saveNote').disabled = $('clearNote').disabled = !sel || !$('noteText').value.trim();
 
     const todays = notes.filter(n=>dayKey(n.createdAt)===today);
     $('todayCount').textContent = todays.length ? todays.length+(todays.length===1?' note':' notes') : '';
@@ -585,13 +586,18 @@ html.locked .wrap{visibility:hidden}
   $('newClientInline').addEventListener('keydown',e=>{ if(e.key==='Enter') $('saveClientInline').click(); });
 
   function saveDraft(){ if(selected) ls.set('draft:'+selected,$('noteText').value); }
-  $('noteText').addEventListener('input',()=>{ $('saveNote').disabled=!$('noteText').value.trim(); clearTimeout(saveDraft._t); saveDraft._t=setTimeout(saveDraft,400); });
+  $('noteText').addEventListener('input',()=>{ $('saveNote').disabled=$('clearNote').disabled=!$('noteText').value.trim(); clearTimeout(saveDraft._t); saveDraft._t=setTimeout(saveDraft,400); });
 
   $('changeTime').addEventListener('click',()=>{ $('timeRow').hidden=!$('timeRow').hidden; if(!$('timeRow').hidden) $('whenInput').value=toLocalInput(customWhen??Date.now()); });
   $('whenInput').addEventListener('change',()=>{ const v=$('whenInput').value; customWhen = v? new Date(v).getTime() : null; tick(); });
   $('whenNow').addEventListener('click',()=>{ customWhen=null; $('timeRow').hidden=true; tick(); });
 
   let stopDictation=()=>{};
+  $('clearNote').addEventListener('click',()=>{
+    if(!$('noteText').value.trim() || !confirm('Clear this note? It has not been saved.')) return;
+    stopDictation(); clearTimeout(saveDraft._t);
+    $('noteText').value=''; saveDraft(); $('saveNote').disabled=$('clearNote').disabled=true; $('noteText').focus();
+  });
   $('saveNote').addEventListener('click',async()=>{
     const text=$('noteText').value.trim(); const c=clients.find(x=>x.id===selected); if(!text||!c) return;
     // Dictation still running would put the words back after the box clears, so stop it first.
