@@ -971,12 +971,14 @@ html.locked .wrap{visibility:hidden}
   /* ---------- fingerprint lock ---------- */
   // Play Store app: Android's own fingerprint/PIN prompt (AppLock plugin).
   // Web app: a passkey on this phone, which Android unlocks with fingerprint or screen lock.
-  const NativeLock = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AppLock;
+  const IOS_APP = !!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()==='ios');
+  const NativeLock = window.Capacitor && ((window.Capacitor.Plugins && window.Capacitor.Plugins.AppLock) || (IOS_APP && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('AppLock') : null));
   const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
   const unb64 = str => Uint8Array.from(atob(str), c=>c.charCodeAt(0));
   const rand = n => crypto.getRandomValues(new Uint8Array(n));
   const Lock = {
     async available(){
+      if(NativeLock && IOS_APP) return true;
       if(NativeLock) return (await NativeLock.available()).available;
       return !!(window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
     },
@@ -1023,7 +1025,7 @@ html.locked .wrap{visibility:hidden}
       if(!(await Lock.available())){ toast('Set up a fingerprint or screen lock in your phone’s settings first.'); return; }
       lockBusy = true; await Lock.enroll();
       lockOn = true; ls.set('lockOn', true); lockPanel(); toast('Fingerprint lock is on');
-    }catch(e){ toast('The lock was not turned on. Try again.'); }
+    }catch(e){ toast(IOS_APP && e && e.message ? 'The lock was not turned on: '+e.message : 'The lock was not turned on. Try again.'); }
     finally{ lockBusy = false; }
   });
   $('lockOff').addEventListener('click', async()=>{

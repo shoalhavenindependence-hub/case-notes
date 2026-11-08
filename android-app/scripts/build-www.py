@@ -181,6 +181,17 @@ sub("      if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, p
       });
       if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }""")
 
+# --- iPhone: Face ID lock ---
+# Find the app's own AppLock plugin even if it isn't pre-attached, let iOS itself
+# decide (Face ID, or the passcode), and show iOS's reason if it says no.
+sub("  const NativeLock = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AppLock;",
+    "  const IOS_APP = !!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()==='ios');\n"
+    "  const NativeLock = window.Capacitor && ((window.Capacitor.Plugins && window.Capacitor.Plugins.AppLock) || (IOS_APP && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('AppLock') : null));")
+sub("      if(NativeLock) return (await NativeLock.available()).available;",
+    "      if(NativeLock && IOS_APP) return true;\n      if(NativeLock) return (await NativeLock.available()).available;")
+sub("    }catch(e){ toast('The lock was not turned on. Try again.'); }",
+    "    }catch(e){ toast(IOS_APP && e && e.message ? 'The lock was not turned on: '+e.message : 'The lock was not turned on. Try again.'); }")
+
 # --- iPhone: say Face ID instead of fingerprint ---
 sub('</body>', """<script>
 (function(){
