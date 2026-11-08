@@ -119,6 +119,7 @@ html.locked .wrap{visibility:hidden}
 .paywall{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--card-ink) 55%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 .paycard{max-width:560px;width:100%}
 .trial{font-size:.85rem;color:var(--muted)}
+.founder{text-align:center;margin:4px 0 0;font-weight:600}
 </style>
 <script>try{ if(JSON.parse(localStorage.getItem('lockOn'))) document.documentElement.classList.add('locked'); }catch(e){}</script>
 </head>
@@ -135,6 +136,7 @@ html.locked .wrap{visibility:hidden}
     <button role="tab" id="tab-clients" aria-selected="false" data-tab="clients">Clients</button>
   </nav>
   <div id="storeBanner" class="banner" hidden></div>
+  <p class="trial founder" id="founderNote" hidden></p>
 
   <!-- LOG -->
   <section id="view-log">
@@ -1046,14 +1048,29 @@ html.locked .wrap{visibility:hidden}
   showTab(ls.get('tab','log'));
 
   /* ---------- free trial and purchase (Google Play or the App Store) ---------- */
-  // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall. Everyone who uses the app
-  // while this is true is marked as an early user, and early users stay free when a price comes in.
+  // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall.
+  // The first 50 iPhones and first 50 Android phones become founding members, free for life
+  // (numbered by the Carla script, debrief-ai/Code.gs, action 'founder'; testers count too).
   const FREE_LAUNCH = true;
-  if (FREE_LAUNCH) ls.set('earlyUser', true);
+  const FOUNDER_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
+  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false; el.textContent='★ Founding member #'+f+' · free for life'; }
+  (async()=>{
+    const C=window.Capacitor; if(!(C && C.isNativePlatform && C.isNativePlatform())) return;
+    if(ls.get('founderAsked',false)){ showFounder(); return; }
+    try{
+      let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); }
+      const res=await fetch(FOUNDER_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'founder',device:d,platform:C.getPlatform()})});
+      const j=await res.json();
+      if(j && typeof j.founder==='boolean'){
+        ls.set('founderAsked',true);
+        if(j.founder){ ls.set('founder',j.number); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for life.'); }
+      }
+    }catch{}
+  })();
   const TRIAL_DAYS = 30;
   const PRODUCT_ID = 'full_unlock';
   let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
-  let unlocked = ls.get('unlocked', false) || ls.get('earlyUser', false);
+  let unlocked = ls.get('unlocked', false) || !!ls.get('founder', null);
   const daysLeft = () => Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now()-firstOpen)/864e5));
   const locked = () => !unlocked && daysLeft()===0 && !!window.CdvPurchase;
   function showPaywall(){ $('paywall').hidden=false; }

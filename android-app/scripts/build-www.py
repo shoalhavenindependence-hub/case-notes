@@ -12,6 +12,7 @@ import pathlib, re, sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 src = (ROOT / 'index.html').read_text()
 s = src
+FOUNDER_URL = re.search(r"const AI_URL = '([^']+)'", src).group(1)
 
 def cut(text, start, end, repl='', include_end=False):
     i = text.index(start)
@@ -127,14 +128,29 @@ sub('''  showTab(ls.get('tab','log'));
 ''', '''  showTab(ls.get('tab','log'));
 
   /* ---------- free trial and purchase (Google Play or the App Store) ---------- */
-  // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall. Everyone who uses the app
-  // while this is true is marked as an early user, and early users stay free when a price comes in.
+  // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall.
+  // The first 50 iPhones and first 50 Android phones become founding members, free for life
+  // (numbered by the Carla script, debrief-ai/Code.gs, action 'founder'; testers count too).
   const FREE_LAUNCH = true;
-  if (FREE_LAUNCH) ls.set('earlyUser', true);
+  const FOUNDER_URL = '__FOUNDER_URL__';
+  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false; el.textContent='\u2605 Founding member #'+f+' \u00b7 free for life'; }
+  (async()=>{
+    const C=window.Capacitor; if(!(C && C.isNativePlatform && C.isNativePlatform())) return;
+    if(ls.get('founderAsked',false)){ showFounder(); return; }
+    try{
+      let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); }
+      const res=await fetch(FOUNDER_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'founder',device:d,platform:C.getPlatform()})});
+      const j=await res.json();
+      if(j && typeof j.founder==='boolean'){
+        ls.set('founderAsked',true);
+        if(j.founder){ ls.set('founder',j.number); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for life.'); }
+      }
+    }catch{}
+  })();
   const TRIAL_DAYS = 30;
   const PRODUCT_ID = 'full_unlock';
   let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
-  let unlocked = ls.get('unlocked', false) || ls.get('earlyUser', false);
+  let unlocked = ls.get('unlocked', false) || !!ls.get('founder', null);
   const daysLeft = () => Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now()-firstOpen)/864e5));
   const locked = () => !unlocked && daysLeft()===0 && !!window.CdvPurchase;
   function showPaywall(){ $('paywall').hidden=false; }
@@ -171,6 +187,11 @@ sub('''  showTab(ls.get('tab','log'));
     $('restoreBuy').addEventListener('click',()=>{ store.restorePurchases().then(()=>{ refresh(); if(!unlocked) toast(IOS?'No purchase found for this Apple ID.':'No purchase found for this Google account.'); }); });
   }, false);
 ''')
+
+# --- founding members: badge under the tabs, and the Carla script's URL ---
+s = s.replace("__FOUNDER_URL__", FOUNDER_URL)
+sub('  <div id="storeBanner" class="banner" hidden></div>', '  <div id="storeBanner" class="banner" hidden></div>\n  <p class="trial founder" id="founderNote" hidden></p>')
+sub('</style>', '.founder{text-align:center;margin:4px 0 0;font-weight:600}\n</style>')
 
 # --- iPhone: Carla's listening ---
 # iOS speech recognition never finishes by itself, so listen with live words
