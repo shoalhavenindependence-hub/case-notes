@@ -1,0 +1,45 @@
+name: TestFlight crash reports
+
+# Prints the crash reports testers sent through TestFlight (read-only).
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+    paths: ['.github/workflows/asc-crashes.yml']
+
+jobs:
+  crashes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch crash reports from App Store Connect
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          KEY_P8: ${{ secrets.APPSTORE_API_KEY_P8 }}
+        run: |
+          pip install -q pyjwt cryptography
+          python3 - <<'PY'
+          import os, re, time, json, jwt, urllib.request, urllib.error
+          kid = re.sub(r'\s', '', os.environ['KEY_ID']); iss = re.sub(r'\s', '', os.environ['ISSUER_ID'])
+          body = re.sub(r'-----[^-]+-----', '', os.environ['KEY_P8']); body = re.sub(r'\s', '', body)
+          pem = '-----BEGIN PRIVATE KEY-----\n' + '\n'.join(body[i:i+64] for i in range(0, len(body), 64)) + '\n-----END PRIVATE KEY-----\n'
+          tok = jwt.encode({'iss': iss, 'iat': int(time.time()), 'exp': int(time.time()) + 1100, 'aud': 'appstoreconnect-v1'}, pem, algorithm='ES256', headers={'kid': kid, 'typ': 'JWT'})
+          def get(u):
+              r = urllib.request.Request(u if u.startswith('http') else 'https://api.appstoreconnect.apple.com' + u, headers={'Authorization': 'Bearer ' + tok})
+              try:
+                  with urllib.request.urlopen(r, timeout=60) as f: return f.read().decode('utf8', 'replace')
+              except urllib.error.HTTPError as e: return 'HTTP %s %s' % (e.code, e.read().decode()[:1000])
+          APP = '6832128455'
+          lst = get('/v1/apps/%s/betaFeedbackCrashSubmissions?limit=10&sort=-createdDate' % APP)
+          print(lst[:3000])
+          try: items = json.loads(lst).get('data', [])
+          except Exception: items = []
+          for it in items[:5]:
+              a = it.get('attributes', {})
+              print('\n==== crash', it['id'], a.get('createdDate'), a.get('deviceModel'), a.get('osVersion'), a.get('comment'))
+              log = get('/v1/betaFeedbackCrashSubmissions/%s/crashLog' % it['id'])
+              try:
+                  j = json.loads(log); text = j['data']['attributes'].get('logText') or ''
+              except Exception: text = log
+              print(text[:12000])
+          PY
