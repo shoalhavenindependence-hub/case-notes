@@ -480,7 +480,18 @@ html.locked .wrap{visibility:hidden}
       const step=()=>{ const [txt,big]=steps[i%4]; ph.textContent=txt+(rounds<3?'':''); c.classList.toggle('big',big); i++; if(i%4===0) rounds++; if(rounds>=3){ stopBreathing(); setTimeout(()=>{ ph.textContent='Well done.'; c.classList.remove('big'); say('How are you feeling now?'); },4000); } };
       requestAnimationFrame(step); breathing=setInterval(step,4000);
     }
+    // Keep the screen on while Carla is open, so the phone doesn't fall asleep mid-chat.
+    let wake=null;
+    async function awake(on){
+      try{ const C=window.Capacitor; if(C && C.getPlatform && C.getPlatform()==='ios'){ const L=(C.Plugins && C.Plugins.AppLock) || C.registerPlugin('AppLock'); await L.keepAwake({on}); } }catch{}
+      try{
+        if(on){ if(!wake && navigator.wakeLock){ wake=await navigator.wakeLock.request('screen'); wake.addEventListener('release',()=>{ wake=null; }); } }
+        else if(wake){ const w=wake; wake=null; await w.release(); }
+      }catch{}
+    }
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && !$('debrief').hidden) awake(true); });
     async function open(){
+      awake(true);
       stage=0; told=false; incidentTold=false; listenAt=0; history=[]; stopBreathing(); log().innerHTML=''; $('chatText').value='';
       if(AI_URL) $('debriefNote').textContent=NOTE_AI;
       $('debrief').hidden=false;
@@ -495,7 +506,7 @@ html.locked .wrap{visibility:hidden}
       const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({action:'speak', device:deviceId, text})});
       const r = await res.json(); return r.audio || null;
     }
-    function close(){ Talk.stop(); stopBreathing(); history=[]; log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
+    function close(){ awake(false); Talk.stop(); stopBreathing(); history=[]; log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
     function userSays(v){
       add(v,'me');
       if(AI_URL) askClaude(v); else reply(v);

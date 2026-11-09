@@ -29,6 +29,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Make the speech plugins safe on iPhone
+        run: python3 scripts/patch-ios-plugins.py
+
       - name: Build the app screens from the web app
         run: python3 scripts/build-www.py
 
