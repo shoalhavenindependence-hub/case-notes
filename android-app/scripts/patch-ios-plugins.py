@@ -30,13 +30,22 @@ def patch(path, pairs):
 
 
 patch('speech-recognition/ios/Plugin/Plugin.swift', [
+    # The crash (TestFlight report, build 15): a result from the previous listen set
+    # recognitionRequest to nil just before it was force-unwrapped. Use a local copy.
+    ("""            self.recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+            self.recognitionRequest?.shouldReportPartialResults = partialResults
+""", """            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.shouldReportPartialResults = partialResults
+            self.recognitionRequest = request
+"""),
+    ("""recognitionTask(with: self.recognitionRequest!, resultHandler:""", """recognitionTask(with: request, resultHandler:"""),
+    ("""                self.recognitionRequest?.append(buffer)""", """                request.append(buffer)"""),
     # Guard the microphone tap.
     ("""            let inputNode: AVAudioInputNode = self.audioEngine!.inputNode
             let format: AVAudioFormat = inputNode.outputFormat(forBus: 0)
 """, """            let inputNode: AVAudioInputNode = self.audioEngine!.inputNode
             let format: AVAudioFormat = inputNode.outputFormat(forBus: 0)
             if format.sampleRate <= 0 || format.channelCount == 0 {
-                self.recognitionRequest = nil
                 call.reject("Microphone is not ready. Please try again.")
                 return
             }
@@ -45,9 +54,9 @@ patch('speech-recognition/ios/Plugin/Plugin.swift', [
      """            inputNode.removeTap(onBus: 0)
             inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) {"""),
     # Results from an old, cancelled listen must not touch the new one.
-    ("""            self.recognitionTask = self.speechRecognizer?.recognitionTask(with: self.recognitionRequest!, resultHandler: { (result, error) in
+    ("""            self.recognitionTask = self.speechRecognizer?.recognitionTask(with: request, resultHandler: { (result, error) in
 """, """            let myEngine = self.audioEngine
-            self.recognitionTask = self.speechRecognizer?.recognitionTask(with: self.recognitionRequest!, resultHandler: { (result, error) in
+            self.recognitionTask = self.speechRecognizer?.recognitionTask(with: request, resultHandler: { (result, error) in
                 if myEngine !== self.audioEngine { return }
 """),
     ("""                    if result!.isFinal {
