@@ -30,16 +30,27 @@ jobs:
                   with urllib.request.urlopen(r, timeout=60) as f: return f.read().decode('utf8', 'replace')
               except urllib.error.HTTPError as e: return 'HTTP %s %s' % (e.code, e.read().decode()[:1000])
           APP = '6832128455'
-          lst = get('/v1/apps/%s/betaFeedbackCrashSubmissions?limit=10&sort=-createdDate' % APP)
-          print(lst[:3000])
+          shots = get('/v1/apps/%s/betaFeedbackScreenshotSubmissions?limit=50&sort=-createdDate' % APP)
+          try:
+              for it in json.loads(shots).get('data', []):
+                  a = it.get('attributes', {})
+                  print('==== screenshot feedback', a.get('createdDate'), 'build', a.get('buildBundleId') or '', a.get('deviceModel'), a.get('osVersion'), '|', a.get('comment'))
+          except Exception: print('screenshots:', shots[:2000])
+          lst = get('/v1/apps/%s/betaFeedbackCrashSubmissions?limit=50&sort=-createdDate' % APP)
+          try:
+              for it in json.loads(lst).get('data', []):
+                  a = it.get('attributes', {})
+                  print('==== crash feedback', a.get('createdDate'), a.get('deviceModel'), a.get('osVersion'), '|', a.get('comment'))
+          except Exception: pass
+          
           try: items = json.loads(lst).get('data', [])
           except Exception: items = []
-          for it in items[:5]:
+          for it in items[:3]:
               a = it.get('attributes', {})
               print('\n==== crash', it['id'], a.get('createdDate'), a.get('deviceModel'), a.get('osVersion'), a.get('comment'))
               log = get('/v1/betaFeedbackCrashSubmissions/%s/crashLog' % it['id'])
               try:
                   j = json.loads(log); text = j['data']['attributes'].get('logText') or ''
               except Exception: text = log
-              print(text[:12000])
+              print(text[:6000])
           PY
