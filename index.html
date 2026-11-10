@@ -25,8 +25,9 @@
   --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
-/* Always the brand colours (green, orange, cream), even when the phone is in dark mode. */
-:root{color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1716; --surface:#172221; --field:#0f1716; --on-ink:#0f1716; --card-ink:#e3eeec; --card-muted:#93a8a5; --bg-ink:#e3eeec; --bg-muted:#93a8a5; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
+  --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f1716; --surface:#172221; --field:#0f1716; --on-ink:#0f1716; --card-ink:#e3eeec; --card-muted:#93a8a5; --bg-ink:#e3eeec; --bg-muted:#93a8a5; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
   --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}
