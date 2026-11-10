@@ -89,6 +89,7 @@ button.client-row{width:100%;font:inherit;color:var(--ink);text-align:left;curso
 .chatbox{width:100%;max-width:640px;display:flex;flex-direction:column;gap:10px;min-height:0}
 .chat-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .chat-head h2{margin:0;font-family:var(--display)}
+a.btn{text-decoration:none;display:inline-block;text-align:center}
 .chat-head .btn{flex:none}
 .chat-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0}
 .msg{max-width:85%;padding:10px 14px;border-radius:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;--ink:var(--card-ink);--muted:var(--card-muted);color:var(--ink)}
@@ -219,6 +220,14 @@ html.locked .wrap{visibility:hidden}
           <button class="btn primary" id="lockOn">Turn on fingerprint lock</button>
           <button class="btn small" id="lockOff" hidden>Turn off</button>
         </div>
+      </div>
+      <div class="pad" id="feedbackPanel" style="margin-top:16px">
+        <h2>Feedback</h2>
+        <p class="hint">Found a problem or have an idea? Tell us. It goes straight to the person who makes Case Note Keeper.</p>
+        <div class="row">
+          <a class="btn primary" id="feedbackBtn" href="mailto:shoalhavenindependence@gmail.com?subject=Case%20Note%20Keeper%20feedback">Send feedback</a>
+        </div>
+        <p class="hint">Or email shoalhavenindependence@gmail.com</p>
       </div>
     </div>
     <div id="clientDetail" hidden>
@@ -714,6 +723,11 @@ html.locked .wrap{visibility:hidden}
     }catch{ render(); toast('Could not delete. Try again.'); }
   });
   $('clientNotes').addEventListener('click',onNoteClick);
+  $('feedbackBtn').addEventListener('click',()=>{
+    const C=window.Capacitor, plat=C&&C.getPlatform?C.getPlatform():'web';
+    const body='\n\n\n---\nSent from: '+({ios:'iPhone app',android:'Android app'}[plat]||'Web app');
+    $('feedbackBtn').href=$('feedbackBtn').href.split('&body=')[0]+'&body='+encodeURIComponent(body);
+  });
 
   /* ---------- in-page dictation ---------- */
   // Android Chrome stops listening after each pause, so we restart until the user taps Stop.
