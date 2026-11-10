@@ -703,7 +703,9 @@ html.locked .wrap{visibility:hidden}
   if (NSR) {
     const btn=$('recBtn'); btn.hidden=false;
     let listening=false, active=false, base='', cur='', quiet=0, restarts=0, hooked=false;
-    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
+    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate';
+      // Keep the screen on while dictating, so the phone doesn't sleep and cut the recording off.
+      try{ const C=window.Capacitor; if(C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.keepAwake({on}).catch(()=>{}); } }catch{} };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
     // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
     function tidy(t){

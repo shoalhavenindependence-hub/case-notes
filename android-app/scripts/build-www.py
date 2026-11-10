@@ -72,7 +72,9 @@ native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform 
   if (NSR) {
     const btn=$('recBtn'); btn.hidden=false;
     let listening=false, active=false, base='', cur='', quiet=0, restarts=0, hooked=false;
-    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
+    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate';
+      // Keep the screen on while dictating, so the phone doesn't sleep and cut the recording off.
+      try{ const C=window.Capacitor; if(C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.keepAwake({on}).catch(()=>{}); } }catch{} };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\\s*$/,' ')+b.replace(/^\\s+/,''));
 ''' + tidy + '''    const show=()=>{ $('noteText').value=joinText(base,cur); $('noteText').dispatchEvent(new Event('input')); };
     const stopAll=msg=>{ listening=false; if(active){ active=false; if(cur){ base=joinText(base, tidy(cur)); cur=''; show(); } } NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
