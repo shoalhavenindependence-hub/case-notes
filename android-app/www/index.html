@@ -691,7 +691,7 @@ html.locked .wrap{visibility:hidden}
   const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
   if (NSR) {
     const btn=$('recBtn'); btn.hidden=false;
-    let listening=false, active=false, base='', cur='', quiet=0, restarts=0, hooked=false;
+    let listening=false, active=false, base='', cur='', last='', quiet=0, restarts=0, hooked=false;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
     // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
@@ -709,14 +709,15 @@ html.locked .wrap{visibility:hidden}
       return t;
     }
     const show=()=>{ $('noteText').value=joinText(base,cur); $('noteText').dispatchEvent(new Event('input')); };
-    const stopAll=msg=>{ listening=false; if(active){ active=false; if(cur){ base=joinText(base, tidy(cur)); cur=''; show(); } } NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
+    const stopAll=msg=>{ listening=false; if(active){ active=false; if(cur){ base=joinText(base, tidy(cur)); last=cur; cur=''; show(); } } NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
     async function hook(){
       if(hooked) return; hooked=true;
-      await NSR.addListener('partialResults', d=>{ if(!active) return; if(d && d.matches && d.matches[0]){ cur=d.matches[0]; quiet=0; show(); } });
+      // A late copy of the words just added (Android can resend them after a restart) is ignored, so nothing doubles up.
+      await NSR.addListener('partialResults', d=>{ if(!active) return; if(d && d.matches && d.matches[0] && d.matches[0]!==last){ cur=d.matches[0]; quiet=0; show(); } });
       await NSR.addListener('listeningState', d=>{
         if(!d || d.status!=='stopped' || !active) return;
         active=false;
-        if(cur){ base=joinText(base, tidy(cur)); cur=''; show(); } else quiet++;
+        if(cur){ base=joinText(base, tidy(cur)); last=cur; cur=''; show(); } else quiet++;
         // Android stops after each pause; carry on until Stop, and give up after two quiet rounds.
         if(listening && quiet<2 && restarts<30){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },300); }
         else if(listening){ listening=false; setBtn(false); }
@@ -732,7 +733,7 @@ html.locked .wrap{visibility:hidden}
         if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
-      base=$('noteText').value; cur=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
+      base=$('noteText').value; cur=''; last=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
       startOnce();
     });
   } else if (SR) {
