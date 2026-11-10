@@ -230,8 +230,10 @@ html.locked .wrap{visibility:hidden}
         <div class="row">
           <input type="text" id="clientName" aria-label="Client name" autocomplete="off" style="flex:1 1 200px">
           <button class="btn small" id="clientHide">Hide</button>
+          <button class="btn small danger" id="clientDel">Delete</button>
         </div>
-        <p class="hint" id="clientHint">Change the name above to rename this client. Hiding a client removes them from the Log screen but keeps their notes.</p>
+        <div class="row" id="clientDelAsk" hidden><span class="confirm"><span id="clientDelMsg"></span> <button class="btn small danger" id="clientDelYes">Delete</button><button class="btn small" id="clientDelNo">Keep</button></span></div>
+        <p class="hint" id="clientHint">Change the name above to rename this client. Hiding a client removes them from the Log screen but keeps their notes. Deleting a client removes them and all their notes for good.</p>
       </div>
       <div class="pad-head"><h2 id="clientNotesTitle">Notes</h2><span class="count" id="clientNotesCount"></span></div>
       <div class="notes" id="clientNotes"></div>
@@ -656,7 +658,7 @@ html.locked .wrap{visibility:hidden}
   $('newClient').addEventListener('keydown',e=>{ if(e.key==='Enter') $('addClient').click(); });
   $('clientList').addEventListener('click',e=>{
     const row=e.target.closest('.client-row'); if(!row) return;
-    viewClient=row.dataset.id; render(); window.scrollTo(0,0);
+    viewClient=row.dataset.id; $('clientDelAsk').hidden=true; render(); window.scrollTo(0,0);
   });
   $('clientBack').addEventListener('click',()=>{ viewClient=null; render(); });
   $('clientName').addEventListener('change',()=>{
@@ -667,6 +669,23 @@ html.locked .wrap{visibility:hidden}
     const id=viewClient; if(!id) return;
     clients=clients.map(c=>c.id===id?{...c,hidden:!c.hidden}:c); store.saveClients(clients); render();
     toast(clients.find(c=>c.id===id).hidden?'Hidden from the Log screen':'Showing on the Log screen');
+  });
+  $('clientDel').addEventListener('click',()=>{
+    const vc=clients.find(c=>c.id===viewClient); if(!vc) return;
+    const k=notes.filter(n=>n.clientId===vc.id).length;
+    $('clientDelMsg').textContent = 'Delete '+vc.name+(k?' and their '+(k===1?'1 note':k+' notes'):'')+' for good?';
+    $('clientDelAsk').hidden=false;
+  });
+  $('clientDelNo').addEventListener('click',()=>{ $('clientDelAsk').hidden=true; });
+  $('clientDelYes').addEventListener('click',async()=>{
+    const id=viewClient; $('clientDelAsk').hidden=true; if(!id) return;
+    try{
+      for(const n of notes.filter(x=>x.clientId===id)){ await store.deleteNote(n.id); notes=notes.filter(x=>x.id!==n.id); }
+      clients=clients.filter(c=>c.id!==id); await store.saveClients(clients);
+      try{ localStorage.removeItem('draft:'+id); }catch{}
+      if(selected===id){ selected=null; ls.set('sel',null); $('noteText').value=''; }
+      viewClient=null; render(); toast('Client deleted');
+    }catch{ render(); toast('Could not delete. Try again.'); }
   });
   $('clientNotes').addEventListener('click',onNoteClick);
 
