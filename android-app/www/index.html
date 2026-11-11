@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#4a6359">
+<meta name="theme-color" content="#0f6b55">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,19 +15,19 @@
 [hidden]{display:none!important}img{max-width:100%}html{-webkit-text-size-adjust:100%}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}
 /* Layout: one phone-width column; sticky tab bar; the dictation pad is the hero of the Log tab. */
 :root{
-  --bg:#4a6359; --surface:#f6f8f6; --field:#eef2ef; --on-ink:#ffffff; --ink:#141a17; --muted:#5c6a63; --line:#d9e1dc;
-  --card-ink:#141a17; --card-muted:#5c6a63; --bg-ink:#ffffff; --bg-muted:#d2ddd7;
-  --accent:#141a17; --accent-ink:#ffffff; --accent-soft:#dfe6e2; --warn:#9a4a10; --warn-soft:#fbe9d8; --danger:#a3271c;
+  --bg:#0f6b55; --surface:#fffaf4; --field:#fff7ee; --on-ink:#ffffff; --ink:#1f2a26; --muted:#6a5f50; --line:#efdcc6;
+  --card-ink:#1f2a26; --card-muted:#6a5f50; --bg-ink:#ffffff; --bg-muted:#d3ebe1;
+  --accent:#ff8000; --accent-ink:#1b1208; --accent-soft:#ffe6cc; --warn:#9a4a10; --warn-soft:#fbe9d8; --danger:#a3271c;
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#111613; --surface:#1c2420; --field:#141a17; --on-ink:#111613; --card-ink:#e4ebe7; --card-muted:#9aaba2; --bg-ink:#e4ebe7; --bg-muted:#9aaba2; --ink:#e4ebe7; --muted:#9aaba2; --line:#2c3631;
-  --accent:#e4ebe7; --accent-ink:#111613; --accent-soft:#2c3631; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}}
+  --bg:#0f1716; --surface:#172221; --field:#0f1716; --on-ink:#0f1716; --card-ink:#e3eeec; --card-muted:#93a8a5; --bg-ink:#e3eeec; --bg-muted:#93a8a5; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
+  --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#111613; --surface:#1c2420; --field:#141a17; --on-ink:#111613; --card-ink:#e4ebe7; --card-muted:#9aaba2; --bg-ink:#e4ebe7; --bg-muted:#9aaba2; --ink:#e4ebe7; --muted:#9aaba2; --line:#2c3631;
-  --accent:#e4ebe7; --accent-ink:#111613; --accent-soft:#2c3631; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}
+  --bg:#0f1716; --surface:#172221; --field:#0f1716; --on-ink:#0f1716; --card-ink:#e3eeec; --card-muted:#93a8a5; --bg-ink:#e3eeec; --bg-muted:#93a8a5; --ink:#e3eeec; --muted:#93a8a5; --line:#2a3a38;
+  --accent:#4fbfb3; --accent-ink:#0b1a18; --accent-soft:#1d3532; --warn:#f0a868; --warn-soft:#3a2a1b; --danger:#ff8a7d; color-scheme:dark}
 *{box-sizing:border-box}
 body{--ink:var(--bg-ink);--muted:var(--bg-muted);background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
 .pad,.debrief,.note,.client-row,.lockbox,nav button,.chip,.btn,textarea,input,select{--ink:var(--card-ink);--muted:var(--card-muted);color:var(--ink)}
