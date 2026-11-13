@@ -30,6 +30,8 @@ jobs:
                   with urllib.request.urlopen(r, timeout=60) as f: return f.read().decode('utf8', 'replace')
               except urllib.error.HTTPError as e: return 'HTTP %s %s' % (e.code, e.read().decode()[:1000])
           APP = '6832128455'
+          print('==== versions', get('/v1/apps/%s/appStoreVersions?limit=5&fields[appStoreVersions]=versionString,appStoreState,appVersionState,createdDate' % APP)[:3000])
+          print('==== review submissions', get('/v1/reviewSubmissions?filter[app]=%s&limit=10&fields[reviewSubmissions]=state,submittedDate,platform' % APP)[:3000])
           shots = get('/v1/apps/%s/betaFeedbackScreenshotSubmissions?limit=50&sort=-createdDate' % APP)
           try:
               for it in json.loads(shots).get('data', []):
