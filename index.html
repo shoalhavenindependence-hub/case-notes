@@ -747,7 +747,7 @@ html.locked .wrap{visibility:hidden}
   }
   if (SR) {
     const btn=$('recBtn'); btn.hidden=false;
-    let rec=null, listening=false, base='', fails=0, restarts=0, pieces=[], current=null, lastHeard=0;
+    let rec=null, listening=false, base='', fails=0, restarts=0, startedAt=0, pieces=[], current=null, lastHeard=0;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \t]*$/,/\n$/.test(a)?'':' ')+b.replace(/^\s+/,''));
     const show=(extra,done)=>{
@@ -777,24 +777,26 @@ html.locked .wrap{visibility:hidden}
         if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.');
         else if(ev.error==='network') stopAll('Dictation needs an internet connection. Use the keyboard microphone instead.');
         else if(ev.error==='audio-capture') stopAll('No microphone found.');
-        else fails++;
       };
+      const began=Date.now();
       rec.onend=()=>{
         current=null;
         if(finalPart.trim()) pieces.push({text:finalPart, gap:gap||0});
         show(null,false);
         rec=null;
-        if(!finalPart) fails++;
-        // Restart after a short gap, at most 20 times, and stop after two quiet rounds so it can never lock up.
-        if(listening && fails<2 && restarts<20) { restarts++; setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } } },400); }
-        else if(listening) stopAll('Dictation stopped. Tap Dictate to carry on.');
+        // Keep listening through pauses, even long thinking pauses. Stop only after 30 seconds of silence,
+        // or if the phone keeps refusing to listen (five quick failures in a row), so it can never lock up.
+        fails = Date.now()-began<1000 && !finalPart ? fails+1 : 0;
+        const quietFor=Date.now()-(lastHeard||startedAt);
+        if(listening && quietFor<30000 && fails<5 && restarts<300) { restarts++; setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } } },150); }
+        else if(listening) stopAll(quietFor>=30000?'Dictation stopped after 30 seconds of quiet. Tap Dictate to carry on.':'Dictation stopped. Tap Dictate to carry on.');
       };
       rec.start();
     }
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
       if(listening){ stopAll(); return; }
-      base=$('noteText').value; pieces=[]; lastHeard=0; fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
+      base=$('noteText').value; pieces=[]; lastHeard=0; startedAt=Date.now(); fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
       try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
     });
   }
