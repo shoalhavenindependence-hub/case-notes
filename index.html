@@ -704,7 +704,8 @@ html.locked .wrap{visibility:hidden}
   // A piece starting with one of these words usually starts a new sentence.
   const NEW_START=words('i he she they we there the his her their our my today tonight this later afterwards overall however otherwise yes please it staff client');
   const COMMON=new Set([...NO_END,...JOIN_START,...NEW_START,'then','after','before','went','had','did','was']);
-  const LONG_PAUSE=3500; // a pause longer than this (in ms) counts as the end of a sentence
+  const LONG_PAUSE=2000; // a pause longer than this (in ms) counts as the end of a sentence
+  const PAUSE_MIN=700;   // a gap in the words at least this long counts as a pause
   function tidyPiece(t){
     t=' '+t+' ';
     t=t.replace(/\s+(full stop|period)\b/gi,'.').replace(/\s+comma\b/gi,',').replace(/\s+question mark\b/gi,'?')
@@ -728,7 +729,7 @@ html.locked .wrap{visibility:hidden}
   function buildText(pieces,startsSentence,done){
     let out='';
     for(const p of pieces){
-      let t=tidyPiece(p.text.replace(/\.\s*$/,''));
+      let t=tidyPiece(p.text);
       if(!t) continue;
       if(!out){ out=t; continue; }
       const how=glue(out,t,p.gap);
@@ -757,7 +758,7 @@ html.locked .wrap{visibility:hidden}
     const stopAll=msg=>{
       const was=listening||rec; listening=false;
       if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; }
-      if(current) pieces.push(...dedupe(current));
+      if(current) pieces.push(...current());
       if(was && pieces.length) show(null,true);
       pieces=[]; current=null; setBtn(false); if(msg) toast(msg);
     };
@@ -780,17 +781,31 @@ html.locked .wrap{visibility:hidden}
     function startOnce(){
       // Continuous listening, so short pauses don't stop the microphone (which beeps each time it starts again).
       rec=new SR(); rec.lang='en-AU'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
-      const sess=[]; let heardAny=false;
-      current=sess;
+      // Android often gives one long, growing result instead of one result per phrase, so we also
+      // note when the words stop arriving for a moment (a pause) and where in the text that happened.
+      const sess=[], marks=[], startGap=lastHeard?Date.now()-lastHeard:0;
+      let heardAny=false, lastText='', lastWords=0, lastChange=0;
+      const sessionPieces=()=>{
+        const w=dedupe(sess).map(r=>r.text.trim()).join(' ').split(/\s+/).filter(Boolean);
+        const out=[]; let from=0, gap=startGap;
+        for(const m of marks){ if(m.at<=from||m.at>=w.length) continue; out.push({text:w.slice(from,m.at).join(' '),gap}); from=m.at; gap=m.gap; }
+        if(from<w.length) out.push({text:w.slice(from).join(' '),gap});
+        return out;
+      };
+      current=sessionPieces;
       rec.onresult=ev=>{
         fails=0; heardAny=true; const now=Date.now();
         for(let k=ev.resultIndex||0;k<ev.results.length;k++){
           const r=ev.results[k];
-          if(!sess[k]) sess[k]={text:'', gap:lastHeard?now-lastHeard:0};
+          if(!sess[k]) sess[k]={text:'',gap:0};
           sess[k].text=r[0].transcript; sess[k].final=r.isFinal;
         }
-        lastHeard=now;
-        show(dedupe(sess), false);
+        const text=dedupe(sess).map(r=>r.text.trim()).join(' '), n=text.split(/\s+/).filter(Boolean).length;
+        if(text!==lastText){
+          if(lastChange && n>lastWords && now-lastChange>=PAUSE_MIN) marks.push({at:lastWords,gap:now-lastChange});
+          lastText=text; lastWords=n; lastChange=now; lastHeard=now;
+        }
+        show(sessionPieces(), false);
       };
       rec.onerror=ev=>{
         if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.');
@@ -800,7 +815,7 @@ html.locked .wrap{visibility:hidden}
       const began=Date.now();
       rec.onend=()=>{
         current=null;
-        pieces.push(...dedupe(sess));
+        pieces.push(...sessionPieces());
         show(null,false);
         rec=null;
         // Chrome still stops after a long silence. Start again until Stop is tapped; give up after
