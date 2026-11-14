@@ -119,7 +119,6 @@ html.locked .wrap{visibility:hidden}
 .count{font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card-ink);color:var(--on-ink);padding:10px 16px;border-radius:10px;font-weight:700;z-index:20;max-width:90vw}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
-@media (prefers-reduced-motion:no-preference){.btn.rec.on{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.7}}}
 </style>
 <script>try{ if(JSON.parse(localStorage.getItem('lockOn'))) document.documentElement.classList.add('locked'); }catch(e){}</script>
 </head>
@@ -751,27 +750,47 @@ html.locked .wrap{visibility:hidden}
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \t]*$/,/\n$/.test(a)?'':' ')+b.replace(/^\s+/,''));
     const show=(extra,done)=>{
-      const all=extra?pieces.concat([extra]):pieces;
+      const all=extra?pieces.concat(extra):pieces;
       $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\n]\s*$/.test(base), done));
       $('noteText').dispatchEvent(new Event('input'));
     };
     const stopAll=msg=>{
       const was=listening||rec; listening=false;
       if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; }
-      if(current&&current.text.trim()) pieces.push(current);
+      if(current) pieces.push(...dedupe(current));
       if(was && pieces.length) show(null,true);
       pieces=[]; current=null; setBtn(false); if(msg) toast(msg);
     };
     stopDictation=()=>{ listening=false; if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; } pieces=[]; current=null; setBtn(false); base=''; };
+    // Android Chrome sometimes repeats earlier words in each new result ("he went", "he went to the shops").
+    // Keep only the longest version so nothing is doubled.
+    function dedupe(list){
+      const norm=t=>t.toLowerCase().replace(/[^a-z0-9' ]/g,'').replace(/\s+/g,' ').trim();
+      const out=[];
+      for(const r of list){
+        if(!r || !r.text.trim()) continue;
+        const prev=out[out.length-1];
+        if(prev){ const a=norm(prev.text), b=norm(r.text);
+          if(b.startsWith(a)){ out[out.length-1]={...r, gap:prev.gap}; continue; }
+          if(a.startsWith(b)) continue; }
+        out.push(r);
+      }
+      return out;
+    }
     function startOnce(){
-      rec=new SR(); rec.lang='en-AU'; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
-      let finalPart='', gap=null;
+      // Continuous listening, so short pauses don't stop the microphone (which beeps each time it starts again).
+      rec=new SR(); rec.lang='en-AU'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+      const sess=[]; let heardAny=false;
+      current=sess;
       rec.onresult=ev=>{
-        fails=0; let interim=''; finalPart='';
-        const now=Date.now(); if(gap===null) gap=lastHeard?now-lastHeard:0; lastHeard=now;
-        for(let k=0;k<ev.results.length;k++){ const r=ev.results[k]; if(r.isFinal) finalPart+=r[0].transcript; else interim+=r[0].transcript; }
-        current={text:finalPart+interim, gap};
-        show(current, false);
+        fails=0; heardAny=true; const now=Date.now();
+        for(let k=ev.resultIndex||0;k<ev.results.length;k++){
+          const r=ev.results[k];
+          if(!sess[k]) sess[k]={text:'', gap:lastHeard?now-lastHeard:0};
+          sess[k].text=r[0].transcript; sess[k].final=r.isFinal;
+        }
+        lastHeard=now;
+        show(dedupe(sess), false);
       };
       rec.onerror=ev=>{
         if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.');
@@ -781,12 +800,12 @@ html.locked .wrap{visibility:hidden}
       const began=Date.now();
       rec.onend=()=>{
         current=null;
-        if(finalPart.trim()) pieces.push({text:finalPart, gap:gap||0});
+        pieces.push(...dedupe(sess));
         show(null,false);
         rec=null;
-        // Keep listening through pauses, even long thinking pauses. Stop only after 30 seconds of silence,
-        // or if the phone keeps refusing to listen (five quick failures in a row), so it can never lock up.
-        fails = Date.now()-began<1000 && !finalPart ? fails+1 : 0;
+        // Chrome still stops after a long silence. Start again until Stop is tapped; give up after
+        // 30 seconds of silence, or if the phone keeps refusing to listen (five quick failures in a row).
+        fails = Date.now()-began<1000 && !heardAny ? fails+1 : 0;
         const quietFor=Date.now()-(lastHeard||startedAt);
         if(listening && quietFor<30000 && fails<5 && restarts<300) { restarts++; setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } } },150); }
         else if(listening) stopAll(quietFor>=30000?'Dictation stopped after 30 seconds of quiet. Tap Dictate to carry on.':'Dictation stopped. Tap Dictate to carry on.');
