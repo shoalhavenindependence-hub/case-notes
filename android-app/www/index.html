@@ -116,7 +116,6 @@ html.locked .wrap{visibility:hidden}
 .count{font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card-ink);color:var(--on-ink);padding:10px 16px;border-radius:10px;font-weight:700;z-index:20;max-width:90vw}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
-@media (prefers-reduced-motion:no-preference){.btn.rec.on{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.7}}}
 .paywall{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--card-ink) 55%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 .paycard{max-width:560px;width:100%}
 .trial{font-size:.85rem;color:var(--muted)}
@@ -720,40 +719,86 @@ html.locked .wrap{visibility:hidden}
 
   /* ---------- in-page dictation ---------- */
   // Android Chrome stops listening after each pause, so we restart until the user taps Stop.
+  // Each pause gives us a separate piece of speech. We keep all the pieces and decide, piece by piece,
+  // whether the pause was the end of a sentence or just a breath in the middle of one.
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const words=s=>new Set(s.split(' '));
+  // A sentence almost never ends on one of these words, so the next piece carries on the same sentence.
+  const NO_END=words('a an the and but or nor so to of for with at in on by from into onto about as than that which who whose whom because since if when while until unless although though very really quite his her their our my your its this these those some any not was were is are am be been being had has have will would could should can might must he she they we i also just');
+  // A piece starting with one of these words carries on the sentence before it.
+  const JOIN_START=words('and but or nor so because which who whose whom with to of by from than including especially plus whereas although though unless until or');
+  // A piece starting with one of these words usually starts a new sentence.
+  const NEW_START=words('i he she they we there the his her their our my today tonight this later afterwards overall however otherwise yes please it staff client');
+  const COMMON=new Set([...NO_END,...JOIN_START,...NEW_START,'then','after','before','went','had','did','was']);
+  const LONG_PAUSE=3500; // a pause longer than this (in ms) counts as the end of a sentence
+  function tidyPiece(t){
+    t=' '+t+' ';
+    t=t.replace(/\s+(full stop|period)\b/gi,'.').replace(/\s+comma\b/gi,',').replace(/\s+question mark\b/gi,'?')
+       .replace(/\s+exclamation (mark|point)\b/gi,'!').replace(/\s*\b(new paragraph|new line|next line)\b\s*/gi,'\n');
+    t=t.replace(/\b(um+|umm+|uh+|uhm+|uh-huh|er+m?|ah+|hmm+|mm+)\b[,.]?/gi,' ');
+    t=t.replace(/\b(you know|i mean|sort of like|kind of like)\b,?\s*/gi,' ');
+    return t.replace(/[ \t]+/g,' ').replace(/^ +| +$/g,'');
+  }
+  // How to glue piece b onto the text so far (a), given the pause between them.
+  function glue(a,b,gap){
+    if(/[.?!,;:\n]$/.test(a)) return 'space';
+    const last=(a.match(/([a-z']+)\W*$/i)||[])[1], first=(b.match(/^\W*([a-z']+)/i)||[])[1];
+    const L=last&&last.toLowerCase(), F=first&&first.toLowerCase();
+    if(L && NO_END.has(L)) return 'space';
+    if(F==='then') return 'comma';
+    if(F && JOIN_START.has(F)) return 'space';
+    if(F && NEW_START.has(F)) return 'stop';
+    return gap>LONG_PAUSE ? 'stop' : 'space';
+  }
+  // Turn the pieces into tidy text. "done" adds the full stop at the very end.
+  function buildText(pieces,startsSentence,done){
+    let out='';
+    for(const p of pieces){
+      let t=tidyPiece(p.text.replace(/\.\s*$/,''));
+      if(!t) continue;
+      if(!out){ out=t; continue; }
+      const how=glue(out,t,p.gap);
+      if(how!=='space' || !/[.?!\n]$/.test(out)) t=t.replace(/^([A-Za-z']+)/,w=>COMMON.has(w.toLowerCase())&&w!=='I'?w.toLowerCase():w);
+      out = how==='stop' ? out+'. '+t : how==='comma' ? out+', '+t : out.replace(/\n$/,'\n').replace(/([^\n])$/,'$1 ')+t;
+    }
+    let t=out;
+    t=t.replace(/\b(\w+)(\s+\1\b)+/gi,'$1');
+    t=t.replace(/[ \t]+/g,' ').replace(/ ([,.?!])/g,'$1').replace(/([,.?!])(?=[^\s\n])/g,'$1 ').replace(/ *\n */g,'\n').replace(/,([.?!])/g,'$1').trim();
+    t=t.replace(/\bi\b/g,'I').replace(/\bi'(m|ve|ll|d)\b/gi,(m,a)=>"I'"+a.toLowerCase());
+    t=t.replace(/([.?!]\s+|\n)([a-z])/g,(m,a,b)=>a+b.toUpperCase());
+    if(startsSentence) t=t.replace(/^([a-z])/,c=>c.toUpperCase());
+    if(done && t && !/[.?!\n]$/.test(t)) t=t.replace(/,$/,'')+'.';
+    return t;
+  }
   const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
   if (NSR) {
+    // Uses the same sentence rules as the web app (buildText): a pause only ends a sentence when it sounds like one.
     const btn=$('recBtn'); btn.hidden=false;
-    let listening=false, active=false, base='', cur='', last='', quiet=0, restarts=0, hooked=false;
+    let listening=false, active=false, base='', cur='', last='', quiet=0, restarts=0, hooked=false, pieces=[], gap=null, lastHeard=0;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
-    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
-    // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
-    function tidy(t){
-      t=' '+t+' ';
-      t=t.replace(/\s+(full stop|period)\b/gi,'.').replace(/\s+comma\b/gi,',').replace(/\s+question mark\b/gi,'?')
-         .replace(/\s+exclamation (mark|point)\b/gi,'!').replace(/\s*\b(new paragraph|new line|next line)\b\s*/gi,'\n');
-      t=t.replace(/\b(um+|umm+|uh+|uhm+|uh-huh|er+m?|ah+|hmm+|mm+)\b[,.]?/gi,' ');
-      t=t.replace(/\b(you know|i mean|sort of like|kind of like)\b,?\s*/gi,' ');
-      t=t.replace(/\b(\w+)(\s+\1\b)+/gi,'$1');
-      t=t.replace(/[ \t]+/g,' ').replace(/ ([,.?!])/g,'$1').replace(/([,.?!])(?=[^\s\n])/g,'$1 ').replace(/ *\n */g,'\n').trim();
-      t=t.replace(/\bi\b/g,'I').replace(/\bi'(m|ve|ll|d)\b/gi,(m,a)=>"I'"+a.toLowerCase());
-      t=t.replace(/(^|[.?!]\s+|\n)([a-z])/g,(m,a,b)=>a+b.toUpperCase());
-      if(t && !/[.?!\n]$/.test(t)) t+='.';
-      return t;
-    }
-    const show=()=>{ $('noteText').value=joinText(base,cur); $('noteText').dispatchEvent(new Event('input')); };
-    const stopAll=msg=>{ listening=false; if(active){ active=false; if(cur){ base=joinText(base, tidy(cur)); last=cur; cur=''; show(); } } NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
+    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \t]*$/,/\n$/.test(a)?'':' ')+b.replace(/^\s+/,''));
+    const show=done=>{
+      const all=cur?pieces.concat([{text:cur,gap:gap||0}]):pieces;
+      $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\n]\s*$/.test(base), done));
+      $('noteText').dispatchEvent(new Event('input'));
+    };
+    // The phone takes about a second and a half to notice a pause and start listening again, so that time isn't counted.
+    const endPiece=()=>{ if(cur){ pieces.push({text:cur,gap:gap||0}); last=cur; cur=''; } gap=null; };
+    const stopAll=msg=>{ const was=listening; listening=false; if(active){ active=false; } endPiece(); if(was && pieces.length) show(true); pieces=[]; NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
+    stopDictation=()=>{ listening=false; active=false; cur=''; pieces=[]; gap=null; base=''; NSR.stop().catch(()=>{}); setBtn(false); };
     async function hook(){
       if(hooked) return; hooked=true;
       // A late copy of the words just added (Android can resend them after a restart) is ignored, so nothing doubles up.
-      await NSR.addListener('partialResults', d=>{ if(!active) return; if(d && d.matches && d.matches[0] && d.matches[0]!==last){ cur=d.matches[0]; quiet=0; show(); } });
+      await NSR.addListener('partialResults', d=>{ if(!active) return; if(d && d.matches && d.matches[0] && d.matches[0]!==last){
+        const now=Date.now(); if(gap===null) gap=lastHeard?Math.max(0,now-lastHeard-1500):0; lastHeard=now;
+        cur=d.matches[0]; quiet=0; show(false); } });
       await NSR.addListener('listeningState', d=>{
         if(!d || d.status!=='stopped' || !active) return;
         active=false;
-        if(cur){ base=joinText(base, tidy(cur)); last=cur; cur=''; show(); } else quiet++;
-        // Android stops after each pause; carry on until Stop, and give up after two quiet rounds.
-        if(listening && quiet<2 && restarts<30){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },300); }
-        else if(listening){ listening=false; setBtn(false); }
+        if(cur){ endPiece(); show(false); } else quiet++;
+        // Android stops after each pause; carry on until Stop, and give up after a few quiet rounds.
+        if(listening && quiet<4 && restarts<300){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },300); }
+        else if(listening) stopAll();
       });
     }
     function startOnce(){ active=true; NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.')); }
@@ -766,59 +811,81 @@ html.locked .wrap{visibility:hidden}
         if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
-      base=$('noteText').value; cur=''; last=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
+      base=$('noteText').value; cur=''; last=''; pieces=[]; gap=null; lastHeard=0; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
       startOnce();
     });
   } else if (SR) {
     const btn=$('recBtn'); btn.hidden=false;
-    let rec=null, listening=false, base='', fails=0, restarts=0;
+    let rec=null, listening=false, base='', fails=0, restarts=0, startedAt=0, pieces=[], current=null, lastHeard=0;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
-    const stopAll=msg=>{ listening=false; if(rec){ try{rec.abort()}catch{} rec=null; } setBtn(false); if(msg) toast(msg); };
-    stopDictation=()=>{ if(rec){ rec.onresult=rec.onend=rec.onerror=null; } stopAll(); base=''; };
-    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\s*$/,' ')+b.replace(/^\s+/,''));
-    // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
-    function tidy(t){
-      t=' '+t+' ';
-      t=t.replace(/\s+(full stop|period)\b/gi,'.').replace(/\s+comma\b/gi,',').replace(/\s+question mark\b/gi,'?')
-         .replace(/\s+exclamation (mark|point)\b/gi,'!').replace(/\s*\b(new paragraph|new line|next line)\b\s*/gi,'\n');
-      t=t.replace(/\b(um+|umm+|uh+|uhm+|uh-huh|er+m?|ah+|hmm+|mm+)\b[,.]?/gi,' ');
-      t=t.replace(/\b(you know|i mean|sort of like|kind of like)\b,?\s*/gi,' ');
-      t=t.replace(/\b(\w+)(\s+\1\b)+/gi,'$1');
-      t=t.replace(/[ \t]+/g,' ').replace(/ ([,.?!])/g,'$1').replace(/([,.?!])(?=[^\s\n])/g,'$1 ').replace(/ *\n */g,'\n').trim();
-      t=t.replace(/\bi\b/g,'I').replace(/\bi'(m|ve|ll|d)\b/gi,(m,a)=>"I'"+a.toLowerCase());
-      t=t.replace(/(^|[.?!]\s+|\n)([a-z])/g,(m,a,b)=>a+b.toUpperCase());
-      if(t && !/[.?!\n]$/.test(t)) t+='.';
-      return t;
+    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \t]*$/,/\n$/.test(a)?'':' ')+b.replace(/^\s+/,''));
+    const show=(extra,done)=>{
+      const all=extra?pieces.concat(extra):pieces;
+      $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\n]\s*$/.test(base), done));
+      $('noteText').dispatchEvent(new Event('input'));
+    };
+    const stopAll=msg=>{
+      const was=listening||rec; listening=false;
+      if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; }
+      if(current) pieces.push(...dedupe(current));
+      if(was && pieces.length) show(null,true);
+      pieces=[]; current=null; setBtn(false); if(msg) toast(msg);
+    };
+    stopDictation=()=>{ listening=false; if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; } pieces=[]; current=null; setBtn(false); base=''; };
+    // Android Chrome sometimes repeats earlier words in each new result ("he went", "he went to the shops").
+    // Keep only the longest version so nothing is doubled.
+    function dedupe(list){
+      const norm=t=>t.toLowerCase().replace(/[^a-z0-9' ]/g,'').replace(/\s+/g,' ').trim();
+      const out=[];
+      for(const r of list){
+        if(!r || !r.text.trim()) continue;
+        const prev=out[out.length-1];
+        if(prev){ const a=norm(prev.text), b=norm(r.text);
+          if(b.startsWith(a)){ out[out.length-1]={...r, gap:prev.gap}; continue; }
+          if(a.startsWith(b)) continue; }
+        out.push(r);
+      }
+      return out;
     }
     function startOnce(){
-      rec=new SR(); rec.lang='en-AU'; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
-      let finalPart='';
+      // Continuous listening, so short pauses don't stop the microphone (which beeps each time it starts again).
+      rec=new SR(); rec.lang='en-AU'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+      const sess=[]; let heardAny=false;
+      current=sess;
       rec.onresult=ev=>{
-        fails=0; let interim=''; finalPart='';
-        for(let k=0;k<ev.results.length;k++){ const r=ev.results[k]; if(r.isFinal) finalPart+=r[0].transcript; else interim+=r[0].transcript; }
-        $('noteText').value=joinText(base, finalPart+interim);
-        $('noteText').dispatchEvent(new Event('input'));
+        fails=0; heardAny=true; const now=Date.now();
+        for(let k=ev.resultIndex||0;k<ev.results.length;k++){
+          const r=ev.results[k];
+          if(!sess[k]) sess[k]={text:'', gap:lastHeard?now-lastHeard:0};
+          sess[k].text=r[0].transcript; sess[k].final=r.isFinal;
+        }
+        lastHeard=now;
+        show(dedupe(sess), false);
       };
       rec.onerror=ev=>{
         if(ev.error==='not-allowed'||ev.error==='service-not-allowed') stopAll('Microphone is blocked. Allow the microphone for Case Note Keeper in your phone settings.');
         else if(ev.error==='network') stopAll('Dictation needs an internet connection. Use the keyboard microphone instead.');
         else if(ev.error==='audio-capture') stopAll('No microphone found.');
-        else fails++;
       };
+      const began=Date.now();
       rec.onend=()=>{
-        base=joinText(base, tidy(finalPart)); $('noteText').value=base; $('noteText').dispatchEvent(new Event('input'));
+        current=null;
+        pieces.push(...dedupe(sess));
+        show(null,false);
         rec=null;
-        if(!finalPart) fails++;
-        // Restart after a short gap, at most 20 times, and stop after two quiet rounds so it can never lock up.
-        if(listening && fails<2 && restarts<20) { restarts++; setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } } },400); }
-        else if(listening) stopAll('Dictation stopped. Tap Dictate to carry on.');
+        // Chrome still stops after a long silence. Start again until Stop is tapped; give up after
+        // 30 seconds of silence, or if the phone keeps refusing to listen (five quick failures in a row).
+        fails = Date.now()-began<1000 && !heardAny ? fails+1 : 0;
+        const quietFor=Date.now()-(lastHeard||startedAt);
+        if(listening && quietFor<30000 && fails<5 && restarts<300) { restarts++; setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation stopped. Tap Dictate to carry on.'); } } },150); }
+        else if(listening) stopAll(quietFor>=30000?'Dictation stopped after 30 seconds of quiet. Tap Dictate to carry on.':'Dictation stopped. Tap Dictate to carry on.');
       };
       rec.start();
     }
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
       if(listening){ stopAll(); return; }
-      base=$('noteText').value; fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
+      base=$('noteText').value; pieces=[]; lastHeard=0; startedAt=Date.now(); fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
       try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
     });
   }

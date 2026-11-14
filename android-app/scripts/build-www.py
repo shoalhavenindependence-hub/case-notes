@@ -67,26 +67,35 @@ sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toa
 sub("if(notes.length && !drive){", "if(notes.length && GD && !gOn){")
 
 # --- dictation: Android's own speech recognition when running as the Play Store app ---
-tidy = re.search(r"    // Rambler-style clean-up.*?\n    function tidy\(t\)\{.*?\n    \}\n", s, re.S).group(0)
 native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
   if (NSR) {
+    // Uses the same sentence rules as the web app (buildText): a pause only ends a sentence when it sounds like one.
     const btn=$('recBtn'); btn.hidden=false;
-    let listening=false, active=false, base='', cur='', last='', quiet=0, restarts=0, hooked=false;
+    let listening=false, active=false, base='', cur='', last='', quiet=0, restarts=0, hooked=false, pieces=[], gap=null, lastHeard=0;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
-    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/\\s*$/,' ')+b.replace(/^\\s+/,''));
-''' + tidy + '''    const show=()=>{ $('noteText').value=joinText(base,cur); $('noteText').dispatchEvent(new Event('input')); };
-    const stopAll=msg=>{ listening=false; if(active){ active=false; if(cur){ base=joinText(base, tidy(cur)); last=cur; cur=''; show(); } } NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
+    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \\t]*$/,/\\n$/.test(a)?'':' ')+b.replace(/^\\s+/,''));
+    const show=done=>{
+      const all=cur?pieces.concat([{text:cur,gap:gap||0}]):pieces;
+      $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\\n]\\s*$/.test(base), done));
+      $('noteText').dispatchEvent(new Event('input'));
+    };
+    // The phone takes about a second and a half to notice a pause and start listening again, so that time isn't counted.
+    const endPiece=()=>{ if(cur){ pieces.push({text:cur,gap:gap||0}); last=cur; cur=''; } gap=null; };
+    const stopAll=msg=>{ const was=listening; listening=false; if(active){ active=false; } endPiece(); if(was && pieces.length) show(true); pieces=[]; NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg); };
+    stopDictation=()=>{ listening=false; active=false; cur=''; pieces=[]; gap=null; base=''; NSR.stop().catch(()=>{}); setBtn(false); };
     async function hook(){
       if(hooked) return; hooked=true;
       // A late copy of the words just added (Android can resend them after a restart) is ignored, so nothing doubles up.
-      await NSR.addListener('partialResults', d=>{ if(!active) return; if(d && d.matches && d.matches[0] && d.matches[0]!==last){ cur=d.matches[0]; quiet=0; show(); } });
+      await NSR.addListener('partialResults', d=>{ if(!active) return; if(d && d.matches && d.matches[0] && d.matches[0]!==last){
+        const now=Date.now(); if(gap===null) gap=lastHeard?Math.max(0,now-lastHeard-1500):0; lastHeard=now;
+        cur=d.matches[0]; quiet=0; show(false); } });
       await NSR.addListener('listeningState', d=>{
         if(!d || d.status!=='stopped' || !active) return;
         active=false;
-        if(cur){ base=joinText(base, tidy(cur)); last=cur; cur=''; show(); } else quiet++;
-        // Android stops after each pause; carry on until Stop, and give up after two quiet rounds.
-        if(listening && quiet<2 && restarts<30){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },300); }
-        else if(listening){ listening=false; setBtn(false); }
+        if(cur){ endPiece(); show(false); } else quiet++;
+        // Android stops after each pause; carry on until Stop, and give up after a few quiet rounds.
+        if(listening && quiet<4 && restarts<300){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },300); }
+        else if(listening) stopAll();
       });
     }
     function startOnce(){ active=true; NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.')); }
@@ -99,12 +108,12 @@ native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform 
         if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
-      base=$('noteText').value; cur=''; last=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
+      base=$('noteText').value; cur=''; last=''; pieces=[]; gap=null; lastHeard=0; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
       startOnce();
     });
   } else '''
-sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n  if (SR) {",
-    "  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n" + native + "if (SR) {")
+sub("  if (SR) {\n    const btn=$('recBtn'); btn.hidden=false;",
+    native + "if (SR) {\n    const btn=$('recBtn'); btn.hidden=false;")
 sub('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.',
     'Microphone is blocked. Allow the microphone for Case Note Keeper in your phone settings.')
 
