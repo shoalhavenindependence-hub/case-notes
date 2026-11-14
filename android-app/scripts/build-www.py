@@ -66,10 +66,44 @@ sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toa
 # --- the reminder banner follows Google sign-in instead of the Apps Script link ---
 sub("if(notes.length && !drive){", "if(notes.length && GD && !gOn){")
 
+# --- dictation on Android: the app's own Dictation plugin dressed up as Chrome's speech recognition,
+#     so the Play app runs exactly the same Dictate code as the web app ---
+sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n",
+"""  const DictationNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+    && window.Capacitor.getPlatform()==='android' && window.Capacitor.Plugins && window.Capacitor.Plugins.Dictation;
+  let micAsked=false;
+  // Behaves like Chrome's SpeechRecognition (onresult / onerror / onend), backed by Android's recogniser.
+  class AndroidSR {
+    constructor(){ this.lang='en-AU'; this.continuous=true; this.interimResults=true; this.maxAlternatives=1; this._res=[]; this._i=0; this._h=null; this._done=false; }
+    _emit(){ const results=this._res.map(r=>Object.assign([{transcript:r.t}],{isFinal:r.f})); if(this.onresult) this.onresult({resultIndex:0, results}); }
+    _end(){ if(this._done) return; this._done=true; const h=this._h; this._h=null; if(h) h.then(x=>x.remove()).catch(()=>{}); if(this.onend) this.onend(); }
+    async start(){
+      const P=window.Capacitor.Plugins.SpeechRecognition;
+      if(!micAsked && P){ try{ let p=await P.checkPermissions(); if(p.speechRecognition!=='granted') p=await P.requestPermissions(); micAsked=true;
+        if(p.speechRecognition!=='granted'){ if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
+      this._h=DictationNative.addListener('dictation', d=>{
+        if(this._done||!d) return;
+        if(d.type==='partial'){ this._res[this._i]={t:d.text,f:false}; this._emit(); }
+        else if(d.type==='final'){ this._res[this._i]={t:d.text,f:true}; this._i++; this._emit(); }
+        else if(d.type==='error'){
+          const e={9:'not-allowed',1:'network',2:'network',3:'audio-capture',6:'no-speech',7:'no-speech'}[d.code]||'aborted';
+          if(this.onerror) this.onerror({error:e});
+        }
+        else if(d.type==='end') this._end();
+      });
+      try{ await this._h; await DictationNative.start({lang:this.lang}); }
+      catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
+    }
+    stop(){ DictationNative.stop().catch(()=>{}); }
+    abort(){ DictationNative.abort().catch(()=>{}); this._end(); }
+  }
+  const SR = DictationNative ? AndroidSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
+""")
+
 # --- dictation: Android's own speech recognition when running as the Play Store app ---
 native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
-  if (NSR) {
-    // Same listening loop as version 43 (which Mark liked), with the web app's smarter full stops (buildText).
+  if (NSR && window.Capacitor.getPlatform()!=='android') {
+    // iPhone: same listening loop as version 43 (which Mark liked), with the web app's smarter full stops (buildText).
     const btn=$('recBtn'); btn.hidden=false;
     let listening=false, active=false, base='', cur='', last='', quiet=0, restarts=0, hooked=false, pieces=[], gap=null, stoppedAt=0;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
