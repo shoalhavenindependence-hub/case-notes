@@ -107,7 +107,7 @@ native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform 
     function startOnce(){ active=true; NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.')); }
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
-      if(listening){ stopAll(); return; }
+      if(listening){ beep(false); stopAll(); return; }
       try{
         const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
         let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
@@ -115,7 +115,8 @@ native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform 
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
       base=$('noteText').value; cur=''; last=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
-      startOnce();
+      beep(true);  // the app's own beep (added 2026-11-15); listening starts just after it
+      setTimeout(()=>{ if(listening) startOnce(); },250);
     });
   } else '''
 sub("  if (SR) {\n    const btn=$('recBtn'); btn.hidden=false;",

@@ -443,6 +443,9 @@ html.locked .wrap{visibility:hidden}
     // Carla's Google AI voice (set up in debrief-ai/Code.gs). Off: the phone's own voice answers straight away.
     const CLOUD_VOICE = false;
     const AI_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
+    // Dictate's AI tidy-up (parked 2026-11-15 at Mark's request; set to true to switch it back on).
+    const DICTATE_AI_TIDY = false;
+    if(DICTATE_AI_TIDY) window.CNK_AI = {url:AI_URL, device:()=>ls.get('deviceId',null)};
     const NOTE_AI = 'Carla is an AI, not a person. Private and not saved: what you say is sent securely to Claude AI for a reply and is not kept in the app.';
     let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
     const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
@@ -771,6 +774,17 @@ html.locked .wrap{visibility:hidden}
     if(done && t && !/[.?!\n]$/.test(t)) t=t.replace(/,$/,'')+'.';
     return t;
   }
+  // A short beep when Dictate starts (rising) and stops (falling), so you know it's recording.
+  let beepCtx=null;
+  function beep(up){
+    try{
+      beepCtx = beepCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const t=beepCtx.currentTime, o=beepCtx.createOscillator(), g=beepCtx.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(up?660:880,t); o.frequency.linearRampToValueAtTime(up?880:660,t+0.15);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.35,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+      o.connect(g); g.connect(beepCtx.destination); o.start(t); o.stop(t+0.2);
+    }catch{}
+  }
   const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
   if (NSR) {
     const btn=$('recBtn'); btn.hidden=false;
@@ -809,7 +823,7 @@ html.locked .wrap{visibility:hidden}
     function startOnce(){ active=true; NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.')); }
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
-      if(listening){ stopAll(); return; }
+      if(listening){ beep(false); stopAll(); return; }
       try{
         const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
         let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
@@ -817,7 +831,8 @@ html.locked .wrap{visibility:hidden}
         await hook();
       }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
       base=$('noteText').value; cur=''; last=''; quiet=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
-      startOnce();
+      beep(true);  // the app's own beep (added 2026-11-15); listening starts just after it
+      setTimeout(()=>{ if(listening) startOnce(); },250);
     });
   } else if (SR) {
     const btn=$('recBtn'); btn.hidden=false;
@@ -829,11 +844,32 @@ html.locked .wrap{visibility:hidden}
       $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\n]\s*$/.test(base), done));
       $('noteText').dispatchEvent(new Event('input'));
     };
+    // Rambler-style AI tidy-up: when you stop, Claude (through the Carla script) cleans up what you just said:
+    // ums, false starts and repeats out, proper sentences, your words and meaning kept. If it can't, the text stays as it is.
+    async function aiTidy(before, said){
+      const ai=window.CNK_AI, box=$('noteText');
+      if(!ai || !ai.url || !said || said.split(/\s+/).length<4 || navigator.onLine===false) return;
+      const shown=box.value;
+      const pill=$('recBtn'); pill.disabled=true; pill.textContent='Tidying…';
+      try{
+        const res=await fetch(ai.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'tidy',device:ai.device()||'',text:said})});
+        const d=await res.json();
+        const t=(d && typeof d.text==='string') ? d.text.trim() : '';
+        // Only swap it in if you haven't changed the box meanwhile, and the result looks like the same note.
+        if(t && box.value===shown && t.length>said.length*0.4 && t.length<said.length*1.6+40){
+          box.value=joinText(before, t); box.dispatchEvent(new Event('input'));
+        } else if(!t){
+          toast(d && d.error==='limit' ? 'Tidy-up limit reached for this month, so your words are as dictated.'
+            : 'Couldn’t tidy this one ('+((d && d.error)||'no reply')+'), so your words are as dictated.');
+        }
+      }catch(e){ toast('Couldn’t reach the tidy-up (check your signal), so your words are as dictated.'); }
+      finally{ pill.disabled=false; if(!listening) setBtn(false); }
+    }
     const stopAll=msg=>{
       const was=listening||rec; listening=false;
       if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; }
       if(current) pieces.push(...current());
-      if(was && pieces.length) show(null,true);
+      if(was && pieces.length){ show(null,true); aiTidy(base, buildText(pieces, !base.trim()||/[.?!\n]\s*$/.test(base), true)); }
       pieces=[]; current=null; setBtn(false); if(msg) toast(msg);
     };
     stopDictation=()=>{ listening=false; if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; } pieces=[]; current=null; setBtn(false); base=''; };
@@ -903,9 +939,11 @@ html.locked .wrap{visibility:hidden}
     }
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
-      if(listening){ stopAll(); return; }
+      if(listening){ beep(false); stopAll(); return; }
       base=$('noteText').value; pieces=[]; lastHeard=0; startedAt=Date.now(); fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
-      try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
+      beep(true);
+      // Start listening just after the beep, so the beep isn't heard as words.
+      setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); } } },250);
     });
   }
 
