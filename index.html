@@ -781,8 +781,11 @@ html.locked .wrap{visibility:hidden}
         // Only swap it in if you haven't changed the box meanwhile, and the result looks like the same note.
         if(t && box.value===shown && t.length>said.length*0.4 && t.length<said.length*1.6+40){
           box.value=joinText(before, t); box.dispatchEvent(new Event('input'));
+        } else if(!t){
+          toast(d && d.error==='limit' ? 'Tidy-up limit reached for this month, so your words are as dictated.'
+            : 'Couldn’t tidy this one ('+((d && d.error)||'no reply')+'), so your words are as dictated.');
         }
-      }catch{}
+      }catch(e){ toast('Couldn’t reach the tidy-up (check your signal), so your words are as dictated.'); }
       finally{ pill.disabled=false; if(!listening) setBtn(false); }
     }
     const stopAll=msg=>{
