@@ -2,7 +2,7 @@ name: iPhone app
 
 on:
   push:
-    branches: [play-store, 'claude/**']
+    branches: ['claude/project-thread-tno35p']  # only the iPhone branch uploads to TestFlight
     paths: ['android-app/**', 'index.html', '.github/workflows/ios.yml']
   workflow_dispatch:
 
