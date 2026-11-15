@@ -417,7 +417,9 @@ html.locked .wrap{visibility:hidden}
     // Carla's Google AI voice (set up in debrief-ai/Code.gs). Off: the phone's own voice answers straight away.
     const CLOUD_VOICE = false;
     const AI_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
-    window.CNK_AI = {url:AI_URL, device:()=>ls.get('deviceId',null)};  // Dictate's AI tidy-up uses the same script
+    // Dictate's AI tidy-up (parked 2026-11-15 at Mark's request; set to true to switch it back on).
+    const DICTATE_AI_TIDY = false;
+    if(DICTATE_AI_TIDY) window.CNK_AI = {url:AI_URL, device:()=>ls.get('deviceId',null)};
     const NOTE_AI = 'Carla is an AI, not a person. Private and not saved: what you say is sent securely to Claude AI for a reply and is not kept in the app.';
     let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
     const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
