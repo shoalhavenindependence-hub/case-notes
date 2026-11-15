@@ -19,7 +19,7 @@
 // claude-sonnet-5-5). Delete the property to go back to this default. No redeploy needed.
 const DEFAULT_MODEL = 'claude-opus-5-5';
 const MONTHLY_LIMIT = 200;            // messages per phone per month (about 20 chats)
-const FOUNDER_LIMIT = 50;             // first 50 iPhones and first 50 Android phones: free for life
+const FOUNDER_LIMIT = 50;             // first 50 iPhones and first 50 Android phones: free for one year
 const DAILY_LIMIT_ALL = 2000;         // messages per day across every phone, to cap spend
 const CARLA_VOICE = 'en-AU-Chirp3-HD-Aoede';  // a calm Australian voice; override with the CARLA_VOICE property
 
@@ -65,6 +65,7 @@ function doPost(e) {
       const audio = synth_(say);
       return out_(audio ? {audio: audio} : {error: 'no_voice'});
     }
+    if (req.action === 'tidy') return out_(tidy_(device, String(req.text || '').slice(0, 6000)));
     const messages = req.messages;
     if (!device || !Array.isArray(messages) || !messages.length || messages.length > 80) return out_({error: 'bad_request'});
     if (!underLimits_(device)) return out_({error: 'limit'});
@@ -105,6 +106,64 @@ function doPost(e) {
   } catch (err) {
     return out_({error: 'server'});
   }
+}
+
+/**
+ * Dictate's Rambler-style clean-up: tidies a dictated case note without changing what it says.
+ * Uses the quick, low-cost Haiku model (change with a TIDY_MODEL script property) and has its own
+ * monthly allowance per phone, so it doesn't use up Carla's.
+ */
+const TIDY_MONTHLY_LIMIT = 1500;       // tidy-ups per phone per month
+const TIDY_SYSTEM = [
+  'You tidy up dictated case notes written by disability and community support workers, like a careful dictation editor.',
+  'Rewrite the transcript you are given as clean written text:',
+  '- Remove filler words (um, uh, like, you know, I mean, sort of), stutters, repeated words and false starts.',
+  '- When the speaker corrects themselves ("at 3, no, 4 o\'clock"), keep only the corrected version.',
+  '- Fix punctuation, capital letters and sentence breaks. Join phrases that were split by pauses. Use Australian spelling.',
+  '- Keep the speaker\'s own words, tone and order as much as possible. Do not summarise, shorten, add, guess, or change any facts, names, times, numbers, medications or quotes.',
+  '- Keep "I" or "we" as spoken. Keep paragraph breaks that are already there.',
+  '- If something is unclear, leave it as it was. Never add comments, headings or notes of your own.',
+  'Reply with the tidied text only.'
+].join('\n');
+
+function tidy_(device, text) {
+  if (!device || !text.trim()) return {error: 'bad_request'};
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('ANTHROPIC_API_KEY');
+  if (!key) return {error: 'not_set_up'};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+  try {
+    const now = new Date();
+    const month = Utilities.formatDate(now, 'Australia/Sydney', 'yyyy-MM');
+    const day = Utilities.formatDate(now, 'Australia/Sydney', 'yyyy-MM-dd');
+    const dKey = 'day_' + day, tKey = 'm_' + month + '_tidy_' + device;
+    const dCount = Number(props.getProperty(dKey) || 0), tCount = Number(props.getProperty(tKey) || 0);
+    if (dCount >= DAILY_LIMIT_ALL || tCount >= TIDY_MONTHLY_LIMIT) return {error: 'limit'};
+    props.setProperty(dKey, String(dCount + 1));
+    props.setProperty(tKey, String(tCount + 1));
+  } finally {
+    lock.releaseLock();
+  }
+  const model = (props.getProperty('TIDY_MODEL') || 'claude-haiku-5-5').trim();
+  const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: {'x-api-key': key, 'anthropic-version': '2026-10-21'},
+    payload: JSON.stringify({
+      model: model,
+      max_tokens: 3000,
+      output_config: {effort: 'low'},  // a simple job, so keep the thinking (and the cost) small
+      system: [{type: 'text', text: TIDY_SYSTEM, cache_control: {type: 'ephemeral'}}],
+      messages: [{role: 'user', content: '<transcript>\n' + text + '\n</transcript>'}]
+    })
+  });
+  if (res.getResponseCode() !== 200) return {error: 'api_' + res.getResponseCode()};
+  const body = JSON.parse(res.getContentText());
+  if (body.stop_reason === 'refusal') return {error: 'refusal'};
+  const out = (body.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+  return out ? {text: out} : {error: 'empty'};
 }
 
 function doGet() { return out_({ok: true}); }
@@ -170,7 +229,7 @@ function out_(obj) {
 }
 
 // Founding members: the first FOUNDER_LIMIT phones on each platform to open the app get a
-// number and are free for life. Counts are in Script Properties founders_ios / founders_android.
+// number and are free for one year from joining. Counts are in Script Properties founders_ios / founders_android.
 function founder_(device, platform) {
   if (!device || (platform !== 'ios' && platform !== 'android')) return {error: 'bad_request'};
   const lock = LockService.getScriptLock();

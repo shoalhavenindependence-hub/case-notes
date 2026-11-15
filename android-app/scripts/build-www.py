@@ -66,81 +66,93 @@ sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toa
 # --- the reminder banner follows Google sign-in instead of the Apps Script link ---
 sub("if(notes.length && !drive){", "if(notes.length && GD && !gOn){")
 
-# --- dictation: Android's own speech recognition when running as the Play Store app ---
-native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
-  if (NSR) {
-    // The phone's own speech recognition. Each listening session gives us growing text for that session;
-    // we note pauses (words stop arriving for a moment) and use the same sentence rules as the web app.
-    const btn=$('recBtn'); btn.hidden=false;
-    let listening=false, active=false, base='', pieces=[], hooked=false, restarts=0, fails=0;
-    let sessText='', lastAdded='', marks=[], lastWords=0, lastChange=0, lastHeard=0, startedAt=0, startGap=0, began=0, heardAny=false;
-    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate';
-      // Keep the screen on while dictating, so the phone doesn't sleep and cut the recording off.
-      try{ const C=window.Capacitor; if(C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.keepAwake({on}).catch(()=>{}); } }catch{} };
-    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \\t]*$/,/\\n$/.test(a)?'':' ')+b.replace(/^\\s+/,''));
-    const sessionPieces=()=>{
-      const w=sessText.split(/\\s+/).filter(Boolean), out=[]; let from=0, gap=startGap;
-      for(const m of marks){ if(m.at<=from||m.at>=w.length) continue; out.push({text:w.slice(from,m.at).join(' '),gap}); from=m.at; gap=m.gap; }
-      if(from<w.length) out.push({text:w.slice(from).join(' '),gap});
-      return out;
-    };
-    const show=(withSession,done)=>{
-      const all=withSession?pieces.concat(sessionPieces()):pieces;
-      $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\\n]\\s*$/.test(base), done));
-      $('noteText').dispatchEvent(new Event('input'));
-    };
-    const endSession=()=>{ if(sessText){ pieces.push(...sessionPieces()); lastAdded=sessText; } sessText=''; marks=[]; lastWords=0; lastChange=0; };
-    const stopAll=msg=>{
-      const was=listening||active; listening=false;
-      if(active){ active=false; endSession(); }
-      if(was && pieces.length) show(false,true);
-      pieces=[]; NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg);
-    };
-    stopDictation=()=>{ listening=false; active=false; sessText=''; marks=[]; pieces=[]; NSR.stop().catch(()=>{}); setBtn(false); base=''; };
-    async function hook(){
-      if(hooked) return; hooked=true;
-      await NSR.addListener('partialResults', d=>{
-        if(!active || !d || !d.matches || !d.matches[0]) return;
-        const t=d.matches[0];
-        // A late copy of the words just added (Android can resend them after a restart) is ignored, so nothing doubles up.
-        if(!sessText && t===lastAdded) return;
-        const now=Date.now(), n=t.split(/\\s+/).filter(Boolean).length;
-        if(t!==sessText){
-          if(lastChange && n>lastWords && now-lastChange>=PAUSE_MIN) marks.push({at:lastWords,gap:now-lastChange});
-          sessText=t; lastWords=n; lastChange=now; lastHeard=now; heardAny=true; fails=0;
+# --- dictation on Android (2026-11-15, version 52): the app's own Dictation plugin keeps listening
+#     through pauses by itself; here it is dressed up as Chrome's speech recognition, so the Play app
+#     runs exactly the same Dictate code (sentence breaks, beep, 30 s quiet stop) as the web app ---
+sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n",
+"""  const DictationNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+    && window.Capacitor.getPlatform()==='android' && window.Capacitor.Plugins && window.Capacitor.Plugins.Dictation;
+  let micAsked=false;
+  // Behaves like Chrome's speech recognition on an Android phone: one long, growing result
+  // (every finished phrase plus the words being spoken now) until Stop, or 30 seconds of quiet.
+  class AndroidSR {
+    constructor(){ this.lang='en-AU'; this.continuous=true; this.interimResults=true; this.maxAlternatives=1;
+      this._fin=[]; this._part=''; this._h=null; this._done=false; this._quiet=null; this._heard=0; }
+    _emit(){
+      this._heard=Date.now();
+      const text=this._fin.concat(this._part?[this._part]:[]).join(' ').replace(/\\s+/g,' ').trim();
+      const r=Object.assign([{transcript:text}],{isFinal:false});
+      if(this.onresult) this.onresult({resultIndex:0, results:[r]});
+    }
+    _end(){
+      if(this._done) return; this._done=true; clearInterval(this._quiet);
+      const h=this._h; this._h=null; if(h) Promise.resolve(h).then(x=>x.remove()).catch(()=>{});
+      if(this.onend) this.onend();
+    }
+    async start(){
+      const P=window.Capacitor.Plugins.SpeechRecognition;
+      if(!micAsked && P){ try{ let p=await P.checkPermissions(); if(p.speechRecognition!=='granted') p=await P.requestPermissions(); micAsked=true;
+        if(p.speechRecognition!=='granted'){ micAsked=false; if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
+      if(this._done) return;
+      this._h=DictationNative.addListener('dictation', d=>{
+        if(this._done||!d) return;
+        if(d.type==='partial'){ this._part=d.text||''; this._emit(); }
+        else if(d.type==='final'){ this._part=''; if(d.text) this._fin.push(d.text); this._emit(); }
+        else if(d.type==='error'){
+          const e={9:'not-allowed',3:'audio-capture',1:'network',2:'network'}[d.code]||'aborted';
+          if(this.onerror) this.onerror({error:e});
         }
-        show(true,false);
+        else if(d.type==='end') this._end();
       });
-      await NSR.addListener('listeningState', d=>{
-        if(!d || d.status!=='stopped' || !active) return;
-        active=false; endSession(); show(false,false);
-        // The phone stops listening after a pause or a time limit; start again until Stop is tapped.
-        // Give up after 30 seconds of quiet, or if the phone keeps refusing to listen.
-        fails = Date.now()-began<1000 && !heardAny ? fails+1 : 0;
-        const quietFor=Date.now()-(lastHeard||startedAt);
-        if(listening && quietFor<30000 && fails<5 && restarts<300){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },250); }
-        else if(listening) stopAll(quietFor>=30000?'Dictation stopped after 30 seconds of quiet. Tap Dictate to carry on.':'Dictation stopped. Tap Dictate to carry on.');
-      });
+      this._heard=Date.now();
+      // The phone keeps listening by itself, so the 30 seconds of quiet are counted here.
+      this._quiet=setInterval(()=>{ if(Date.now()-this._heard>=30000){ DictationNative.abort().catch(()=>{}); this._end(); } },1000);
+      try{ await this._h; if(this._done) return; await DictationNative.start({lang:this.lang}); }
+      catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
     }
-    function startOnce(){
-      active=true; heardAny=false; began=Date.now(); startGap=lastHeard?Date.now()-lastHeard:0;
-      NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.'));
+    stop(){ DictationNative.stop().catch(()=>{}); }
+    abort(){ DictationNative.abort().catch(()=>{}); this._end(); }
+  }
+  // iPhone (2026-11-15): Apple's speech recognition (the SpeechRecognition plugin) dressed up the same way,
+  // so the iPhone app runs exactly the same Dictate code as the web app and the Play app.
+  const IosNSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+    && window.Capacitor.getPlatform()==='ios' && window.Capacitor.Plugins && window.Capacitor.Plugins.SpeechRecognition;
+  class IosSR {
+    constructor(){ this.lang='en-AU'; this.continuous=true; this.interimResults=true; this.maxAlternatives=1;
+      this._text=''; this._hs=[]; this._done=false; this._quiet=null; this._heard=0; }
+    _end(){
+      if(this._done) return; this._done=true; clearInterval(this._quiet);
+      const hs=this._hs; this._hs=[]; hs.forEach(h=>Promise.resolve(h).then(x=>x.remove()).catch(()=>{}));
+      if(this.onend) this.onend();
     }
-    btn.addEventListener('click',async()=>{
-      if(!selected){ toast('Pick a client first'); return; }
-      if(listening){ stopAll(); return; }
-      try{
-        const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
-        let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
-        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
-        await hook();
-      }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
-      base=$('noteText').value; pieces=[]; sessText=''; lastAdded=''; marks=[]; lastHeard=0; startedAt=Date.now(); fails=0; restarts=0;
-      listening=true; setBtn(true); toast('Listening… speak now');
-      startOnce();
-    });
-  } else '''
-sub("\n  if (SR) {\n    const btn=$('recBtn');", "\n" + native + "if (SR) {\n    const btn=$('recBtn');")
+    async start(){
+      if(!micAsked){ try{ let p=await IosNSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await IosNSR.requestPermissions(); micAsked=true;
+        if(p.speechRecognition!=='granted'){ micAsked=false; if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
+      if(this._done) return;
+      this._hs.push(IosNSR.addListener('partialResults', d=>{
+        if(this._done || !d || !d.matches || !d.matches[0]) return;
+        this._text=d.matches[0]; this._heard=Date.now();
+        const r=Object.assign([{transcript:this._text}],{isFinal:false});
+        if(this.onresult) this.onresult({resultIndex:0, results:[r]});
+      }));
+      this._hs.push(IosNSR.addListener('listeningState', d=>{ if(d && d.status==='stopped') this._end(); }));
+      this._heard=Date.now();
+      // Count the 30 seconds of quiet here too, as the phone may keep listening by itself.
+      this._quiet=setInterval(()=>{ if(Date.now()-this._heard>=30000){ IosNSR.stop().catch(()=>{}); this._end(); } },1000);
+      try{ await Promise.all(this._hs); if(this._done) return;
+        await IosNSR.start({language:this.lang, maxResults:1, partialResults:true, popup:false}); }
+      catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
+    }
+    stop(){ IosNSR.stop().catch(()=>{}); }
+    abort(){ IosNSR.stop().catch(()=>{}); this._end(); }
+  }
+  const SR = DictationNative ? AndroidSR : IosNSR ? IosSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
+""")
+
+
+# Keep the iPhone screen on while dictating, so the phone doesn't sleep and cut the recording off.
+sub("    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };\n    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \\t]*$/",
+    "    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate';\n      try{ const C=window.Capacitor; if(C && C.getPlatform && C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.keepAwake({on}).catch(()=>{}); } }catch{} };\n    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \\t]*$/")
 sub('Microphone is blocked. In Chrome, go to Settings, Site settings, Microphone and allow this app. Also check Chrome itself is allowed the microphone in your phone settings.',
     'Microphone is blocked. Allow the microphone for Case Note Keeper in your phone settings.')
 
@@ -166,11 +178,14 @@ sub('''  showTab(ls.get('tab','log'));
 
   /* ---------- free trial and purchase (Google Play or the App Store) ---------- */
   // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall.
-  // The first 50 iPhones and first 50 Android phones become founding members, free for life
+  // The first 50 iPhones and first 50 Android phones become founding members, free for one year
+  // from the day they joined (Mark changed this from free for life on 2026-11-15).
   // (numbered by the Carla script, debrief-ai/Code.gs, action 'founder'; testers count too).
   const FREE_LAUNCH = true;
   const FOUNDER_URL = '__FOUNDER_URL__';
-  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false; el.textContent='\u2605 Founding member #'+f+' \u00b7 free for life'; }
+  const founderUntil=()=>{ if(!ls.get('founder',null)) return 0; let s=ls.get('founderSince',0); if(!s){ s=Date.now(); ls.set('founderSince',s); } return s+365*864e5; };
+  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false;
+    const until=founderUntil(); el.textContent='\u2605 Founding member #'+f+(Date.now()<until ? ' \u00b7 free until '+new Date(until).toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'}) : ''); }
   (async()=>{
     const C=window.Capacitor; if(!(C && C.isNativePlatform && C.isNativePlatform())) return;
     if(ls.get('founderAsked',false)){ showFounder(); return; }
@@ -180,14 +195,14 @@ sub('''  showTab(ls.get('tab','log'));
       const j=await res.json();
       if(j && typeof j.founder==='boolean'){
         ls.set('founderAsked',true);
-        if(j.founder){ ls.set('founder',j.number); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for life.'); }
+        if(j.founder){ ls.set('founder',j.number); if(!ls.get('founderSince',0)) ls.set('founderSince',Date.now()); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for a year.'); }
       }
     }catch{}
   })();
   const TRIAL_DAYS = 30;
   const PRODUCT_ID = 'full_unlock';
   let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
-  let unlocked = ls.get('unlocked', false) || !!ls.get('founder', null);
+  let unlocked = ls.get('unlocked', false) || Date.now() < founderUntil();
   const daysLeft = () => Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now()-firstOpen)/864e5));
   const locked = () => !unlocked && daysLeft()===0 && !!window.CdvPurchase;
   function showPaywall(){ $('paywall').hidden=false; }

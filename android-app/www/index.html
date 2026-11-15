@@ -155,7 +155,7 @@ html.locked .wrap{visibility:hidden}
         <span class="stamp" id="stamp"></span>
       </div>
       <textarea id="noteText" placeholder="Type here or tap on the Dictate button to talk" disabled></textarea>
-      <p class="hint" id="micHint">Tap <b>● Dictate</b> and talk naturally. Ums, repeats and stutters are cleaned up, and each pause starts a new sentence. Say “new line”, “comma” or “full stop” if you want them. Check it over before saving.</p>
+      <p class="hint" id="micHint">Tap <b>● Dictate</b> and talk naturally. Ums, repeats and stutters are cleaned up, and each pause starts a new sentence. Say “new line”, “comma” or “full stop” if you want them. Tap <b>✨ Tidy up</b> to have AI polish the note. Check it over before saving.</p>
       <div class="row" id="timeRow" hidden>
         <label for="whenInput" class="hint">Note time</label>
         <input type="datetime-local" id="whenInput" style="flex:1 1 200px">
@@ -166,7 +166,9 @@ html.locked .wrap{visibility:hidden}
         <button class="btn rec" id="recBtn" hidden>● Dictate</button>
         <button class="btn small" id="changeTime">Change time</button>
         <button class="btn small" id="clearNote" disabled>Clear</button>
+        <button class="btn small" id="tidyNote" disabled hidden>✨ Tidy up</button>
       </div>
+      <div class="row" id="tidyUndo" hidden><span class="confirm">Tidied up. Check it over. <button class="btn small" id="tidyUndoBtn">Undo</button></span></div>
       <div class="row" id="clearAsk" hidden><span class="confirm">Clear this note? It has not been saved. <button class="btn small danger" id="clearYes">Clear</button><button class="btn small" id="clearNo">Keep</button></span></div>
     </div>
 
@@ -446,6 +448,8 @@ html.locked .wrap{visibility:hidden}
     const NOTE_AI = 'Carla is an AI, not a person. Private and not saved: what you say is sent securely to Claude AI for a reply and is not kept in the app.';
     let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
     const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
+    // The note's "Tidy up" button uses the same AI script.
+    window.CNK_AI = AI_URL ? {url:AI_URL, device:()=>deviceId} : null;
     const linkify = t => esc(t).replace(/\b(13 ?11 ?14|1300 ?22 ?4636|000)\b/g, m=>`<a href="tel:${m.replace(/ /g,'')}">${m}</a>`);
     async function askClaude(raw){
       const last = history[history.length-1];
@@ -573,8 +577,9 @@ html.locked .wrap{visibility:hidden}
     const sel = clients.find(c=>c.id===selected);
     $('padTitle').textContent = sel ? 'Note for '+sel.name : (ready && !activeClients().length ? 'Add your first client' : 'Pick a client first');
     $('noteText').disabled = !sel;
-    $('saveNote').disabled = $('clearNote').disabled = !sel || !$('noteText').value.trim();
+    $('saveNote').disabled = $('clearNote').disabled = $('tidyNote').disabled = !sel || !$('noteText').value.trim();
     if($('clearNote').disabled) $('clearAsk').hidden=true;
+    if($('tidyNote').disabled) $('tidyUndo').hidden=true;
 
     const todays = notes.filter(n=>dayKey(n.createdAt)===today);
     $('todayCount').textContent = todays.length ? todays.length+(todays.length===1?' note':' notes') : '';
@@ -635,18 +640,51 @@ html.locked .wrap{visibility:hidden}
   $('newClientInline').addEventListener('keydown',e=>{ if(e.key==='Enter') $('saveClientInline').click(); });
 
   function saveDraft(){ if(selected) ls.set('draft:'+selected,$('noteText').value); }
-  $('noteText').addEventListener('input',()=>{ $('saveNote').disabled=$('clearNote').disabled=!$('noteText').value.trim(); clearTimeout(saveDraft._t); saveDraft._t=setTimeout(saveDraft,400); });
+  $('noteText').addEventListener('input',()=>{ $('saveNote').disabled=$('clearNote').disabled=$('tidyNote').disabled=!$('noteText').value.trim(); if(!tidying) $('tidyUndo').hidden=true; clearTimeout(saveDraft._t); saveDraft._t=setTimeout(saveDraft,400); });
 
   $('changeTime').addEventListener('click',()=>{ $('timeRow').hidden=!$('timeRow').hidden; if(!$('timeRow').hidden) $('whenInput').value=toLocalInput(customWhen??Date.now()); });
   $('whenInput').addEventListener('change',()=>{ const v=$('whenInput').value; customWhen = v? new Date(v).getTime() : null; tick(); });
   $('whenNow').addEventListener('click',()=>{ customWhen=null; $('timeRow').hidden=true; tick(); });
 
   let stopDictation=()=>{};
+
+  /* ---------- Tidy up button: AI polishes the note (through the Carla script) ---------- */
+  // Ums, false starts and repeats out, proper sentences; your words, facts and meaning kept.
+  let tidying=false, tidyBefore=null;
+  if(window.CNK_AI) $('tidyNote').hidden=false;
+  $('tidyNote').addEventListener('click',async()=>{
+    const ai=window.CNK_AI, box=$('noteText'), b=$('tidyNote');
+    if(!ai || tidying) return;
+    if($('recBtn').classList.contains('on')) $('recBtn').click();   // finish dictating first
+    const text=box.value.trim();
+    if(!text){ toast('Nothing to tidy yet'); return; }
+    if(navigator.onLine===false){ toast('Tidy up needs signal. Try again when you’re back online.'); return; }
+    tidying=true; b.disabled=true; b.textContent='Tidying…';
+    try{
+      const res=await fetch(ai.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'tidy',device:ai.device()||'',text})});
+      const d=await res.json().catch(()=>null);
+      const t=(d && typeof d.text==='string') ? d.text.trim() : '';
+      if(box.value.trim()!==text){ toast('You changed the note while it was tidying, so it was left as it is.'); }
+      else if(t && t.length>text.length*0.4 && t.length<text.length*1.6+40){
+        tidyBefore=box.value; box.value=t; box.dispatchEvent(new Event('input')); $('tidyUndo').hidden=false;
+      } else {
+        const why = !d ? 'no reply' : d.error || 'odd reply';
+        toast(why==='limit' ? 'Tidy-up limit reached for this month. Your note is unchanged.'
+          : why==='bad_request' ? 'Tidy up isn’t switched on in the AI script yet (it needs its new version deployed). Your note is unchanged.'
+          : 'Couldn’t tidy this one ('+why+'). Your note is unchanged.');
+      }
+    }catch(e){ toast('Couldn’t reach the tidy-up (check your signal). Your note is unchanged.'); }
+    finally{ tidying=false; b.textContent='✨ Tidy up'; b.disabled=!box.value.trim(); }
+  });
+  $('tidyUndoBtn').addEventListener('click',()=>{
+    if(tidyBefore==null) return;
+    $('noteText').value=tidyBefore; tidyBefore=null; $('noteText').dispatchEvent(new Event('input')); $('tidyUndo').hidden=true;
+  });
   $('clearNote').addEventListener('click',()=>{ if($('noteText').value.trim()) $('clearAsk').hidden=false; });
   $('clearNo').addEventListener('click',()=>{ $('clearAsk').hidden=true; });
   $('clearYes').addEventListener('click',()=>{
     $('clearAsk').hidden=true; stopDictation(); clearTimeout(saveDraft._t);
-    $('noteText').value=''; saveDraft(); $('saveNote').disabled=$('clearNote').disabled=true; $('noteText').focus();
+    $('noteText').value=''; saveDraft(); $('saveNote').disabled=$('clearNote').disabled=$('tidyNote').disabled=true; $('tidyUndo').hidden=true; $('noteText').focus();
   });
   $('saveNote').addEventListener('click',async()=>{
     const text=$('noteText').value.trim(); const c=clients.find(x=>x.id===selected); if(!text||!c) return;
@@ -732,7 +770,83 @@ html.locked .wrap{visibility:hidden}
   // Android Chrome stops listening after each pause, so we restart until the user taps Stop.
   // Each pause gives us a separate piece of speech. We keep all the pieces and decide, piece by piece,
   // whether the pause was the end of a sentence or just a breath in the middle of one.
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const DictationNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+    && window.Capacitor.getPlatform()==='android' && window.Capacitor.Plugins && window.Capacitor.Plugins.Dictation;
+  let micAsked=false;
+  // Behaves like Chrome's speech recognition on an Android phone: one long, growing result
+  // (every finished phrase plus the words being spoken now) until Stop, or 30 seconds of quiet.
+  class AndroidSR {
+    constructor(){ this.lang='en-AU'; this.continuous=true; this.interimResults=true; this.maxAlternatives=1;
+      this._fin=[]; this._part=''; this._h=null; this._done=false; this._quiet=null; this._heard=0; }
+    _emit(){
+      this._heard=Date.now();
+      const text=this._fin.concat(this._part?[this._part]:[]).join(' ').replace(/\s+/g,' ').trim();
+      const r=Object.assign([{transcript:text}],{isFinal:false});
+      if(this.onresult) this.onresult({resultIndex:0, results:[r]});
+    }
+    _end(){
+      if(this._done) return; this._done=true; clearInterval(this._quiet);
+      const h=this._h; this._h=null; if(h) Promise.resolve(h).then(x=>x.remove()).catch(()=>{});
+      if(this.onend) this.onend();
+    }
+    async start(){
+      const P=window.Capacitor.Plugins.SpeechRecognition;
+      if(!micAsked && P){ try{ let p=await P.checkPermissions(); if(p.speechRecognition!=='granted') p=await P.requestPermissions(); micAsked=true;
+        if(p.speechRecognition!=='granted'){ micAsked=false; if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
+      if(this._done) return;
+      this._h=DictationNative.addListener('dictation', d=>{
+        if(this._done||!d) return;
+        if(d.type==='partial'){ this._part=d.text||''; this._emit(); }
+        else if(d.type==='final'){ this._part=''; if(d.text) this._fin.push(d.text); this._emit(); }
+        else if(d.type==='error'){
+          const e={9:'not-allowed',3:'audio-capture',1:'network',2:'network'}[d.code]||'aborted';
+          if(this.onerror) this.onerror({error:e});
+        }
+        else if(d.type==='end') this._end();
+      });
+      this._heard=Date.now();
+      // The phone keeps listening by itself, so the 30 seconds of quiet are counted here.
+      this._quiet=setInterval(()=>{ if(Date.now()-this._heard>=30000){ DictationNative.abort().catch(()=>{}); this._end(); } },1000);
+      try{ await this._h; if(this._done) return; await DictationNative.start({lang:this.lang}); }
+      catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
+    }
+    stop(){ DictationNative.stop().catch(()=>{}); }
+    abort(){ DictationNative.abort().catch(()=>{}); this._end(); }
+  }
+  // iPhone (2026-11-15): Apple's speech recognition (the SpeechRecognition plugin) dressed up the same way,
+  // so the iPhone app runs exactly the same Dictate code as the web app and the Play app.
+  const IosNSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+    && window.Capacitor.getPlatform()==='ios' && window.Capacitor.Plugins && window.Capacitor.Plugins.SpeechRecognition;
+  class IosSR {
+    constructor(){ this.lang='en-AU'; this.continuous=true; this.interimResults=true; this.maxAlternatives=1;
+      this._text=''; this._hs=[]; this._done=false; this._quiet=null; this._heard=0; }
+    _end(){
+      if(this._done) return; this._done=true; clearInterval(this._quiet);
+      const hs=this._hs; this._hs=[]; hs.forEach(h=>Promise.resolve(h).then(x=>x.remove()).catch(()=>{}));
+      if(this.onend) this.onend();
+    }
+    async start(){
+      if(!micAsked){ try{ let p=await IosNSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await IosNSR.requestPermissions(); micAsked=true;
+        if(p.speechRecognition!=='granted'){ micAsked=false; if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
+      if(this._done) return;
+      this._hs.push(IosNSR.addListener('partialResults', d=>{
+        if(this._done || !d || !d.matches || !d.matches[0]) return;
+        this._text=d.matches[0]; this._heard=Date.now();
+        const r=Object.assign([{transcript:this._text}],{isFinal:false});
+        if(this.onresult) this.onresult({resultIndex:0, results:[r]});
+      }));
+      this._hs.push(IosNSR.addListener('listeningState', d=>{ if(d && d.status==='stopped') this._end(); }));
+      this._heard=Date.now();
+      // Count the 30 seconds of quiet here too, as the phone may keep listening by itself.
+      this._quiet=setInterval(()=>{ if(Date.now()-this._heard>=30000){ IosNSR.stop().catch(()=>{}); this._end(); } },1000);
+      try{ await Promise.all(this._hs); if(this._done) return;
+        await IosNSR.start({language:this.lang, maxResults:1, partialResults:true, popup:false}); }
+      catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
+    }
+    stop(){ IosNSR.stop().catch(()=>{}); }
+    abort(){ IosNSR.stop().catch(()=>{}); this._end(); }
+  }
+  const SR = DictationNative ? AndroidSR : IosNSR ? IosSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
   const words=s=>new Set(s.split(' '));
   // A sentence almost never ends on one of these words, so the next piece carries on the same sentence.
   const NO_END=words('a an the and but or nor so to of for with at in on by from into onto about as than that which who whose whom because since if when while until unless although though very really quite his her their our my your its this these those some any not was were is are am be been being had has have will would could should can might must he she they we i also just');
@@ -782,82 +896,22 @@ html.locked .wrap{visibility:hidden}
     if(done && t && !/[.?!\n]$/.test(t)) t=t.replace(/,$/,'')+'.';
     return t;
   }
-  const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
-  if (NSR) {
-    // The phone's own speech recognition. Each listening session gives us growing text for that session;
-    // we note pauses (words stop arriving for a moment) and use the same sentence rules as the web app.
-    const btn=$('recBtn'); btn.hidden=false;
-    let listening=false, active=false, base='', pieces=[], hooked=false, restarts=0, fails=0;
-    let sessText='', lastAdded='', marks=[], lastWords=0, lastChange=0, lastHeard=0, startedAt=0, startGap=0, began=0, heardAny=false;
-    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate';
-      // Keep the screen on while dictating, so the phone doesn't sleep and cut the recording off.
-      try{ const C=window.Capacitor; if(C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.keepAwake({on}).catch(()=>{}); } }catch{} };
-    const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \t]*$/,/\n$/.test(a)?'':' ')+b.replace(/^\s+/,''));
-    const sessionPieces=()=>{
-      const w=sessText.split(/\s+/).filter(Boolean), out=[]; let from=0, gap=startGap;
-      for(const m of marks){ if(m.at<=from||m.at>=w.length) continue; out.push({text:w.slice(from,m.at).join(' '),gap}); from=m.at; gap=m.gap; }
-      if(from<w.length) out.push({text:w.slice(from).join(' '),gap});
-      return out;
-    };
-    const show=(withSession,done)=>{
-      const all=withSession?pieces.concat(sessionPieces()):pieces;
-      $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\n]\s*$/.test(base), done));
-      $('noteText').dispatchEvent(new Event('input'));
-    };
-    const endSession=()=>{ if(sessText){ pieces.push(...sessionPieces()); lastAdded=sessText; } sessText=''; marks=[]; lastWords=0; lastChange=0; };
-    const stopAll=msg=>{
-      const was=listening||active; listening=false;
-      if(active){ active=false; endSession(); }
-      if(was && pieces.length) show(false,true);
-      pieces=[]; NSR.stop().catch(()=>{}); setBtn(false); if(msg) toast(msg);
-    };
-    stopDictation=()=>{ listening=false; active=false; sessText=''; marks=[]; pieces=[]; NSR.stop().catch(()=>{}); setBtn(false); base=''; };
-    async function hook(){
-      if(hooked) return; hooked=true;
-      await NSR.addListener('partialResults', d=>{
-        if(!active || !d || !d.matches || !d.matches[0]) return;
-        const t=d.matches[0];
-        // A late copy of the words just added (Android can resend them after a restart) is ignored, so nothing doubles up.
-        if(!sessText && t===lastAdded) return;
-        const now=Date.now(), n=t.split(/\s+/).filter(Boolean).length;
-        if(t!==sessText){
-          if(lastChange && n>lastWords && now-lastChange>=PAUSE_MIN) marks.push({at:lastWords,gap:now-lastChange});
-          sessText=t; lastWords=n; lastChange=now; lastHeard=now; heardAny=true; fails=0;
-        }
-        show(true,false);
-      });
-      await NSR.addListener('listeningState', d=>{
-        if(!d || d.status!=='stopped' || !active) return;
-        active=false; endSession(); show(false,false);
-        // The phone stops listening after a pause or a time limit; start again until Stop is tapped.
-        // Give up after 30 seconds of quiet, or if the phone keeps refusing to listen.
-        fails = Date.now()-began<1000 && !heardAny ? fails+1 : 0;
-        const quietFor=Date.now()-(lastHeard||startedAt);
-        if(listening && quietFor<30000 && fails<5 && restarts<300){ restarts++; setTimeout(()=>{ if(listening) startOnce(); },250); }
-        else if(listening) stopAll(quietFor>=30000?'Dictation stopped after 30 seconds of quiet. Tap Dictate to carry on.':'Dictation stopped. Tap Dictate to carry on.');
-      });
-    }
-    function startOnce(){
-      active=true; heardAny=false; began=Date.now(); startGap=lastHeard?Date.now()-lastHeard:0;
-      NSR.start({language:'en-AU', maxResults:1, partialResults:true, popup:false}).catch(()=>stopAll('Dictation stopped. Tap Dictate to carry on.'));
-    }
-    btn.addEventListener('click',async()=>{
-      if(!selected){ toast('Pick a client first'); return; }
-      if(listening){ stopAll(); return; }
-      try{
-        const ok=await NSR.available(); if(!ok.available){ toast('Speech recognition is not available on this phone. Use the keyboard microphone.'); return; }
-        let perm=await NSR.checkPermissions(); if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
-        if(perm.speechRecognition!=='granted'){ toast('Allow the microphone for Case Note Keeper in your phone settings to use Dictate.'); return; }
-        await hook();
-      }catch{ toast('Dictation could not start. Use the keyboard microphone.'); return; }
-      base=$('noteText').value; pieces=[]; sessText=''; lastAdded=''; marks=[]; lastHeard=0; startedAt=Date.now(); fails=0; restarts=0;
-      listening=true; setBtn(true); toast('Listening… speak now');
-      startOnce();
-    });
-  } else if (SR) {
+  // A short beep when Dictate starts (rising) and stops (falling), so you know it's recording.
+  let beepCtx=null;
+  function beep(up){
+    try{
+      beepCtx = beepCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const t=beepCtx.currentTime, o=beepCtx.createOscillator(), g=beepCtx.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(up?660:880,t); o.frequency.linearRampToValueAtTime(up?880:660,t+0.15);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.35,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+      o.connect(g); g.connect(beepCtx.destination); o.start(t); o.stop(t+0.2);
+    }catch{}
+  }
+  if (SR) {
     const btn=$('recBtn'); btn.hidden=false;
     let rec=null, listening=false, base='', fails=0, restarts=0, startedAt=0, pieces=[], current=null, lastHeard=0;
-    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
+    const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate';
+      try{ const C=window.Capacitor; if(C && C.getPlatform && C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.keepAwake({on}).catch(()=>{}); } }catch{} };
     const joinText=(a,b)=>!a?b:(!b?a:a.replace(/[ \t]*$/,/\n$/.test(a)?'':' ')+b.replace(/^\s+/,''));
     const show=(extra,done)=>{
       const all=extra?pieces.concat(extra):pieces;
@@ -938,9 +992,11 @@ html.locked .wrap{visibility:hidden}
     }
     btn.addEventListener('click',async()=>{
       if(!selected){ toast('Pick a client first'); return; }
-      if(listening){ stopAll(); return; }
+      if(listening){ beep(false); stopAll(); return; }
       base=$('noteText').value; pieces=[]; lastHeard=0; startedAt=Date.now(); fails=0; restarts=0; listening=true; setBtn(true); toast('Listening… speak now');
-      try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); }
+      beep(true);
+      // Start listening just after the beep, so the beep isn't heard as words.
+      setTimeout(()=>{ if(listening){ try{ startOnce(); }catch{ stopAll('Dictation could not start. Use the keyboard microphone instead.'); } } },250);
     });
   }
 
@@ -1204,11 +1260,14 @@ html.locked .wrap{visibility:hidden}
 
   /* ---------- free trial and purchase (Google Play or the App Store) ---------- */
   // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall.
-  // The first 50 iPhones and first 50 Android phones become founding members, free for life
+  // The first 50 iPhones and first 50 Android phones become founding members, free for one year
+  // from the day they joined (Mark changed this from free for life on 2026-11-15).
   // (numbered by the Carla script, debrief-ai/Code.gs, action 'founder'; testers count too).
   const FREE_LAUNCH = true;
   const FOUNDER_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
-  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false; el.textContent='★ Founding member #'+f+' · free for life'; }
+  const founderUntil=()=>{ if(!ls.get('founder',null)) return 0; let s=ls.get('founderSince',0); if(!s){ s=Date.now(); ls.set('founderSince',s); } return s+365*864e5; };
+  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false;
+    const until=founderUntil(); el.textContent='★ Founding member #'+f+(Date.now()<until ? ' · free until '+new Date(until).toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'}) : ''); }
   (async()=>{
     const C=window.Capacitor; if(!(C && C.isNativePlatform && C.isNativePlatform())) return;
     if(ls.get('founderAsked',false)){ showFounder(); return; }
@@ -1218,14 +1277,14 @@ html.locked .wrap{visibility:hidden}
       const j=await res.json();
       if(j && typeof j.founder==='boolean'){
         ls.set('founderAsked',true);
-        if(j.founder){ ls.set('founder',j.number); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for life.'); }
+        if(j.founder){ ls.set('founder',j.number); if(!ls.get('founderSince',0)) ls.set('founderSince',Date.now()); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for a year.'); }
       }
     }catch{}
   })();
   const TRIAL_DAYS = 30;
   const PRODUCT_ID = 'full_unlock';
   let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
-  let unlocked = ls.get('unlocked', false) || !!ls.get('founder', null);
+  let unlocked = ls.get('unlocked', false) || Date.now() < founderUntil();
   const daysLeft = () => Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now()-firstOpen)/864e5));
   const locked = () => !unlocked && daysLeft()===0 && !!window.CdvPurchase;
   function showPaywall(){ $('paywall').hidden=false; }
