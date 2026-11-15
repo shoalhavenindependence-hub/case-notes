@@ -196,11 +196,14 @@ sub('''  showTab(ls.get('tab','log'));
 
   /* ---------- free trial and purchase (Google Play or the App Store) ---------- */
   // Launch is free (Mark's decision, 2026-11-08): no trial, no paywall.
-  // The first 50 iPhones and first 50 Android phones become founding members, free for life
+  // The first 50 iPhones and first 50 Android phones become founding members, free for one year
+  // from the day they joined (Mark changed this from free for life on 2026-11-15).
   // (numbered by the Carla script, debrief-ai/Code.gs, action 'founder'; testers count too).
   const FREE_LAUNCH = true;
   const FOUNDER_URL = '__FOUNDER_URL__';
-  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false; el.textContent='\u2605 Founding member #'+f+' \u00b7 free for life'; }
+  const founderUntil=()=>{ if(!ls.get('founder',null)) return 0; let s=ls.get('founderSince',0); if(!s){ s=Date.now(); ls.set('founderSince',s); } return s+365*864e5; };
+  function showFounder(){ const f=ls.get('founder',null); if(!f) return; const el=$('founderNote'); el.hidden=false;
+    const until=founderUntil(); el.textContent='\u2605 Founding member #'+f+(Date.now()<until ? ' \u00b7 free until '+new Date(until).toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'}) : ''); }
   (async()=>{
     const C=window.Capacitor; if(!(C && C.isNativePlatform && C.isNativePlatform())) return;
     if(ls.get('founderAsked',false)){ showFounder(); return; }
@@ -210,14 +213,14 @@ sub('''  showTab(ls.get('tab','log'));
       const j=await res.json();
       if(j && typeof j.founder==='boolean'){
         ls.set('founderAsked',true);
-        if(j.founder){ ls.set('founder',j.number); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for life.'); }
+        if(j.founder){ ls.set('founder',j.number); if(!ls.get('founderSince',0)) ls.set('founderSince',Date.now()); showFounder(); toast('Welcome, founding member #'+j.number+'! Case Note Keeper is free for you for a year.'); }
       }
     }catch{}
   })();
   const TRIAL_DAYS = 30;
   const PRODUCT_ID = 'full_unlock';
   let firstOpen = ls.get('firstOpen', 0); if(!firstOpen){ firstOpen=Date.now(); ls.set('firstOpen', firstOpen); }
-  let unlocked = ls.get('unlocked', false) || !!ls.get('founder', null);
+  let unlocked = ls.get('unlocked', false) || Date.now() < founderUntil();
   const daysLeft = () => Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now()-firstOpen)/864e5));
   const locked = () => !unlocked && daysLeft()===0 && !!window.CdvPurchase;
   function showPaywall(){ $('paywall').hidden=false; }
