@@ -19,7 +19,7 @@
 // claude-sonnet-5-5). Delete the property to go back to this default. No redeploy needed.
 const DEFAULT_MODEL = 'claude-opus-5-5';
 const MONTHLY_LIMIT = 200;            // messages per phone per month (about 20 chats)
-const FOUNDER_LIMIT = 50;             // first 50 iPhones and first 50 Android phones: free for life
+const FOUNDER_LIMIT = 50;             // first 50 iPhones and first 50 Android phones: free for one year
 const DAILY_LIMIT_ALL = 2000;         // messages per day across every phone, to cap spend
 const CARLA_VOICE = 'en-AU-Chirp3-HD-Aoede';  // a calm Australian voice; override with the CARLA_VOICE property
 
@@ -229,7 +229,7 @@ function out_(obj) {
 }
 
 // Founding members: the first FOUNDER_LIMIT phones on each platform to open the app get a
-// number and are free for life. Counts are in Script Properties founders_ios / founders_android.
+// number and are free for one year from joining. Counts are in Script Properties founders_ios / founders_android.
 function founder_(device, platform) {
   if (!device || (platform !== 'ios' && platform !== 'android')) return {error: 'bad_request'};
   const lock = LockService.getScriptLock();
