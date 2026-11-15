@@ -66,8 +66,58 @@ sub('<div class="toast" id="toast" hidden></div>', """<div class="toast" id="toa
 # --- the reminder banner follows Google sign-in instead of the Apps Script link ---
 sub("if(notes.length && !drive){", "if(notes.length && GD && !gOn){")
 
-# --- dictation: Android's own speech recognition when running as the Play Store app ---
-# Dictate in the Play app is exactly as it was in version 43 (Mark's choice, 2026-11-15).
+# --- dictation on Android (2026-11-15, version 52): the app's own Dictation plugin keeps listening
+#     through pauses by itself; here it is dressed up as Chrome's speech recognition, so the Play app
+#     runs exactly the same Dictate code (sentence breaks, beep, 30 s quiet stop) as the web app ---
+sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n",
+"""  const DictationNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+    && window.Capacitor.getPlatform()==='android' && window.Capacitor.Plugins && window.Capacitor.Plugins.Dictation;
+  let micAsked=false;
+  // Behaves like Chrome's speech recognition on an Android phone: one long, growing result
+  // (every finished phrase plus the words being spoken now) until Stop, or 30 seconds of quiet.
+  class AndroidSR {
+    constructor(){ this.lang='en-AU'; this.continuous=true; this.interimResults=true; this.maxAlternatives=1;
+      this._fin=[]; this._part=''; this._h=null; this._done=false; this._quiet=null; this._heard=0; }
+    _emit(){
+      this._heard=Date.now();
+      const text=this._fin.concat(this._part?[this._part]:[]).join(' ').replace(/\\s+/g,' ').trim();
+      const r=Object.assign([{transcript:text}],{isFinal:false});
+      if(this.onresult) this.onresult({resultIndex:0, results:[r]});
+    }
+    _end(){
+      if(this._done) return; this._done=true; clearInterval(this._quiet);
+      const h=this._h; this._h=null; if(h) Promise.resolve(h).then(x=>x.remove()).catch(()=>{});
+      if(this.onend) this.onend();
+    }
+    async start(){
+      const P=window.Capacitor.Plugins.SpeechRecognition;
+      if(!micAsked && P){ try{ let p=await P.checkPermissions(); if(p.speechRecognition!=='granted') p=await P.requestPermissions(); micAsked=true;
+        if(p.speechRecognition!=='granted'){ micAsked=false; if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
+      if(this._done) return;
+      this._h=DictationNative.addListener('dictation', d=>{
+        if(this._done||!d) return;
+        if(d.type==='partial'){ this._part=d.text||''; this._emit(); }
+        else if(d.type==='final'){ this._part=''; if(d.text) this._fin.push(d.text); this._emit(); }
+        else if(d.type==='error'){
+          const e={9:'not-allowed',3:'audio-capture',1:'network',2:'network'}[d.code]||'aborted';
+          if(this.onerror) this.onerror({error:e});
+        }
+        else if(d.type==='end') this._end();
+      });
+      this._heard=Date.now();
+      // The phone keeps listening by itself, so the 30 seconds of quiet are counted here.
+      this._quiet=setInterval(()=>{ if(Date.now()-this._heard>=30000){ DictationNative.abort().catch(()=>{}); this._end(); } },1000);
+      try{ await this._h; if(this._done) return; await DictationNative.start({lang:this.lang}); }
+      catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
+    }
+    stop(){ DictationNative.stop().catch(()=>{}); }
+    abort(){ DictationNative.abort().catch(()=>{}); this._end(); }
+  }
+  const SR = DictationNative ? AndroidSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
+""")
+
+# --- dictation: iPhone app (Android uses the web Dictate code above) ---
+# iPhone Dictate is as it was in version 43.
 tidy = r'''    // Rambler-style clean-up: drop filler words and stutters, obey spoken punctuation, fix capitals.
     function tidy(t){
       t=' '+t+' ';
@@ -84,7 +134,7 @@ tidy = r'''    // Rambler-style clean-up: drop filler words and stutters, obey s
     }
 '''
 native = '''  const NSR = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.SpeechRecognition;
-  if (NSR) {
+  if (NSR && window.Capacitor.getPlatform()!=='android') {
     const btn=$('recBtn'); btn.hidden=false;
     let listening=false, active=false, base='', cur='', last='', quiet=0, restarts=0, hooked=false;
     const setBtn=on=>{ btn.classList.toggle('on',on); btn.textContent=on?'■ Stop':'● Dictate'; };
