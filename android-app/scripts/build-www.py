@@ -125,7 +125,7 @@ sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n"
       const hs=this._hs; this._hs=[]; hs.forEach(h=>Promise.resolve(h).then(x=>x.remove()).catch(()=>{}));
       if(this.onend) this.onend();
     }
-    async start(){
+    async start(){ IosSR.gen++;
       if(!micAsked){ try{ let p=await IosNSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await IosNSR.requestPermissions(); micAsked=true;
         if(p.speechRecognition!=='granted'){ micAsked=false; if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
       if(this._done) return;
@@ -144,9 +144,11 @@ sub("  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;\n"
       catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
     }
     stop(){ IosNSR.stop().catch(()=>{}); }
-    abort(){ IosNSR.stop().catch(()=>{}); this._end(); }
+    // Wait a moment before releasing the microphone, so the stop beep isn't cut off.
+    abort(){ const me=++IosSR.gen; setTimeout(()=>{ if(me===IosSR.gen) IosNSR.stop().catch(()=>{}); },300); this._end(); }
   }
-  const SR = DictationNative ? AndroidSR : IosNSR ? IosSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
+  if(IosNSR) IosSR.gen=0;
+const SR = DictationNative ? AndroidSR : IosNSR ? IosSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
 """)
 
 
@@ -260,6 +262,10 @@ sub("      if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, p
       if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }""")
 
 # --- iPhone: Face ID lock ---
+# iPhone: play the Dictate beep natively (web audio is silenced by the silent switch and the microphone).
+sub("  function beep(up){\n    try{",
+    "  function beep(up){\n    try{ const C=window.Capacitor; if(C && C.getPlatform && C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.beep({up:!!up}).catch(()=>{}); return; } }catch{}\n    try{")
+
 # Find the app's own AppLock plugin even if it isn't pre-attached, let iOS itself
 # decide (Face ID, or the passcode), and show iOS's reason if it says no.
 sub("  const NativeLock = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AppLock;",

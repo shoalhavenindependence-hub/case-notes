@@ -825,7 +825,7 @@ html.locked .wrap{visibility:hidden}
       const hs=this._hs; this._hs=[]; hs.forEach(h=>Promise.resolve(h).then(x=>x.remove()).catch(()=>{}));
       if(this.onend) this.onend();
     }
-    async start(){
+    async start(){ IosSR.gen++;
       if(!micAsked){ try{ let p=await IosNSR.checkPermissions(); if(p.speechRecognition!=='granted') p=await IosNSR.requestPermissions(); micAsked=true;
         if(p.speechRecognition!=='granted'){ micAsked=false; if(this.onerror) this.onerror({error:'not-allowed'}); this._end(); return; } }catch{} }
       if(this._done) return;
@@ -844,9 +844,11 @@ html.locked .wrap{visibility:hidden}
       catch{ if(this.onerror) this.onerror({error:'aborted'}); this._end(); }
     }
     stop(){ IosNSR.stop().catch(()=>{}); }
-    abort(){ IosNSR.stop().catch(()=>{}); this._end(); }
+    // Wait a moment before releasing the microphone, so the stop beep isn't cut off.
+    abort(){ const me=++IosSR.gen; setTimeout(()=>{ if(me===IosSR.gen) IosNSR.stop().catch(()=>{}); },300); this._end(); }
   }
-  const SR = DictationNative ? AndroidSR : IosNSR ? IosSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
+  if(IosNSR) IosSR.gen=0;
+const SR = DictationNative ? AndroidSR : IosNSR ? IosSR : (window.SpeechRecognition || window.webkitSpeechRecognition);
   const words=s=>new Set(s.split(' '));
   // A sentence almost never ends on one of these words, so the next piece carries on the same sentence.
   const NO_END=words('a an the and but or nor so to of for with at in on by from into onto about as than that which who whose whom because since if when while until unless although though very really quite his her their our my your its this these those some any not was were is are am be been being had has have will would could should can might must he she they we i also just');
@@ -899,6 +901,7 @@ html.locked .wrap{visibility:hidden}
   // A short beep when Dictate starts (rising) and stops (falling), so you know it's recording.
   let beepCtx=null;
   function beep(up){
+    try{ const C=window.Capacitor; if(C && C.getPlatform && C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.beep({up:!!up}).catch(()=>{}); return; } }catch{}
     try{
       beepCtx = beepCtx || new (window.AudioContext||window.webkitAudioContext)();
       const t=beepCtx.currentTime, o=beepCtx.createOscillator(), g=beepCtx.createGain();
