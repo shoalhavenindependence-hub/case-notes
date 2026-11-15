@@ -153,7 +153,7 @@ html.locked .wrap{visibility:hidden}
         <span class="stamp" id="stamp"></span>
       </div>
       <textarea id="noteText" placeholder="Type here or tap on the Dictate button to talk" disabled></textarea>
-      <p class="hint" id="micHint">Tap <b>● Dictate</b> and talk naturally. Ums, repeats and stutters are cleaned up, and each pause starts a new sentence. Say “new line”, “comma” or “full stop” if you want them. Check it over before saving.</p>
+      <p class="hint" id="micHint">Tap <b>● Dictate</b> and talk naturally. Ums, repeats and stutters are cleaned up, and each pause starts a new sentence. Say “new line”, “comma” or “full stop” if you want them. Tap <b>✨ Tidy up</b> to have AI polish the note. Check it over before saving.</p>
       <div class="row" id="timeRow" hidden>
         <label for="whenInput" class="hint">Note time</label>
         <input type="datetime-local" id="whenInput" style="flex:1 1 200px">
@@ -164,7 +164,9 @@ html.locked .wrap{visibility:hidden}
         <button class="btn rec" id="recBtn" hidden>● Dictate</button>
         <button class="btn small" id="changeTime">Change time</button>
         <button class="btn small" id="clearNote" disabled>Clear</button>
+        <button class="btn small" id="tidyNote" disabled hidden>✨ Tidy up</button>
       </div>
+      <div class="row" id="tidyUndo" hidden><span class="confirm">Tidied up. Check it over. <button class="btn small" id="tidyUndoBtn">Undo</button></span></div>
       <div class="row" id="clearAsk" hidden><span class="confirm">Clear this note? It has not been saved. <button class="btn small danger" id="clearYes">Clear</button><button class="btn small" id="clearNo">Keep</button></span></div>
     </div>
 
@@ -417,12 +419,11 @@ html.locked .wrap{visibility:hidden}
     // Carla's Google AI voice (set up in debrief-ai/Code.gs). Off: the phone's own voice answers straight away.
     const CLOUD_VOICE = false;
     const AI_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
-    // Dictate's AI tidy-up (parked 2026-11-15 at Mark's request; set to true to switch it back on).
-    const DICTATE_AI_TIDY = false;
-    if(DICTATE_AI_TIDY) window.CNK_AI = {url:AI_URL, device:()=>ls.get('deviceId',null)};
     const NOTE_AI = 'Carla is an AI, not a person. Private and not saved: what you say is sent securely to Claude AI for a reply and is not kept in the app.';
     let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
     const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
+    // The note's "Tidy up" button uses the same AI script.
+    window.CNK_AI = AI_URL ? {url:AI_URL, device:()=>deviceId} : null;
     const linkify = t => esc(t).replace(/\b(13 ?11 ?14|1300 ?22 ?4636|000)\b/g, m=>`<a href="tel:${m.replace(/ /g,'')}">${m}</a>`);
     async function askClaude(raw){
       const last = history[history.length-1];
@@ -539,8 +540,9 @@ html.locked .wrap{visibility:hidden}
     const sel = clients.find(c=>c.id===selected);
     $('padTitle').textContent = sel ? 'Note for '+sel.name : (ready && !activeClients().length ? 'Add your first client' : 'Pick a client first');
     $('noteText').disabled = !sel;
-    $('saveNote').disabled = $('clearNote').disabled = !sel || !$('noteText').value.trim();
+    $('saveNote').disabled = $('clearNote').disabled = $('tidyNote').disabled = !sel || !$('noteText').value.trim();
     if($('clearNote').disabled) $('clearAsk').hidden=true;
+    if($('tidyNote').disabled) $('tidyUndo').hidden=true;
 
     const todays = notes.filter(n=>dayKey(n.createdAt)===today);
     $('todayCount').textContent = todays.length ? todays.length+(todays.length===1?' note':' notes') : '';
@@ -601,18 +603,51 @@ html.locked .wrap{visibility:hidden}
   $('newClientInline').addEventListener('keydown',e=>{ if(e.key==='Enter') $('saveClientInline').click(); });
 
   function saveDraft(){ if(selected) ls.set('draft:'+selected,$('noteText').value); }
-  $('noteText').addEventListener('input',()=>{ $('saveNote').disabled=$('clearNote').disabled=!$('noteText').value.trim(); clearTimeout(saveDraft._t); saveDraft._t=setTimeout(saveDraft,400); });
+  $('noteText').addEventListener('input',()=>{ $('saveNote').disabled=$('clearNote').disabled=$('tidyNote').disabled=!$('noteText').value.trim(); if(!tidying) $('tidyUndo').hidden=true; clearTimeout(saveDraft._t); saveDraft._t=setTimeout(saveDraft,400); });
 
   $('changeTime').addEventListener('click',()=>{ $('timeRow').hidden=!$('timeRow').hidden; if(!$('timeRow').hidden) $('whenInput').value=toLocalInput(customWhen??Date.now()); });
   $('whenInput').addEventListener('change',()=>{ const v=$('whenInput').value; customWhen = v? new Date(v).getTime() : null; tick(); });
   $('whenNow').addEventListener('click',()=>{ customWhen=null; $('timeRow').hidden=true; tick(); });
 
   let stopDictation=()=>{};
+
+  /* ---------- Tidy up button: AI polishes the note (through the Carla script) ---------- */
+  // Ums, false starts and repeats out, proper sentences; your words, facts and meaning kept.
+  let tidying=false, tidyBefore=null;
+  if(window.CNK_AI) $('tidyNote').hidden=false;
+  $('tidyNote').addEventListener('click',async()=>{
+    const ai=window.CNK_AI, box=$('noteText'), b=$('tidyNote');
+    if(!ai || tidying) return;
+    if($('recBtn').classList.contains('on')) $('recBtn').click();   // finish dictating first
+    const text=box.value.trim();
+    if(!text){ toast('Nothing to tidy yet'); return; }
+    if(navigator.onLine===false){ toast('Tidy up needs signal. Try again when you’re back online.'); return; }
+    tidying=true; b.disabled=true; b.textContent='Tidying…';
+    try{
+      const res=await fetch(ai.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'tidy',device:ai.device()||'',text})});
+      const d=await res.json().catch(()=>null);
+      const t=(d && typeof d.text==='string') ? d.text.trim() : '';
+      if(box.value.trim()!==text){ toast('You changed the note while it was tidying, so it was left as it is.'); }
+      else if(t && t.length>text.length*0.4 && t.length<text.length*1.6+40){
+        tidyBefore=box.value; box.value=t; box.dispatchEvent(new Event('input')); $('tidyUndo').hidden=false;
+      } else {
+        const why = !d ? 'no reply' : d.error || 'odd reply';
+        toast(why==='limit' ? 'Tidy-up limit reached for this month. Your note is unchanged.'
+          : why==='bad_request' ? 'Tidy up isn’t switched on in the AI script yet (it needs its new version deployed). Your note is unchanged.'
+          : 'Couldn’t tidy this one ('+why+'). Your note is unchanged.');
+      }
+    }catch(e){ toast('Couldn’t reach the tidy-up (check your signal). Your note is unchanged.'); }
+    finally{ tidying=false; b.textContent='✨ Tidy up'; b.disabled=!box.value.trim(); }
+  });
+  $('tidyUndoBtn').addEventListener('click',()=>{
+    if(tidyBefore==null) return;
+    $('noteText').value=tidyBefore; tidyBefore=null; $('noteText').dispatchEvent(new Event('input')); $('tidyUndo').hidden=true;
+  });
   $('clearNote').addEventListener('click',()=>{ if($('noteText').value.trim()) $('clearAsk').hidden=false; });
   $('clearNo').addEventListener('click',()=>{ $('clearAsk').hidden=true; });
   $('clearYes').addEventListener('click',()=>{
     $('clearAsk').hidden=true; stopDictation(); clearTimeout(saveDraft._t);
-    $('noteText').value=''; saveDraft(); $('saveNote').disabled=$('clearNote').disabled=true; $('noteText').focus();
+    $('noteText').value=''; saveDraft(); $('saveNote').disabled=$('clearNote').disabled=$('tidyNote').disabled=true; $('tidyUndo').hidden=true; $('noteText').focus();
   });
   $('saveNote').addEventListener('click',async()=>{
     const text=$('noteText').value.trim(); const c=clients.find(x=>x.id===selected); if(!text||!c) return;
@@ -769,32 +804,11 @@ html.locked .wrap{visibility:hidden}
       $('noteText').value=joinText(base, buildText(all, !base.trim()||/[.?!\n]\s*$/.test(base), done));
       $('noteText').dispatchEvent(new Event('input'));
     };
-    // Rambler-style AI tidy-up: when you stop, Claude (through the Carla script) cleans up what you just said:
-    // ums, false starts and repeats out, proper sentences, your words and meaning kept. If it can't, the text stays as it is.
-    async function aiTidy(before, said){
-      const ai=window.CNK_AI, box=$('noteText');
-      if(!ai || !ai.url || !said || said.split(/\s+/).length<4 || navigator.onLine===false) return;
-      const shown=box.value;
-      const pill=$('recBtn'); pill.disabled=true; pill.textContent='Tidying…';
-      try{
-        const res=await fetch(ai.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'tidy',device:ai.device()||'',text:said})});
-        const d=await res.json();
-        const t=(d && typeof d.text==='string') ? d.text.trim() : '';
-        // Only swap it in if you haven't changed the box meanwhile, and the result looks like the same note.
-        if(t && box.value===shown && t.length>said.length*0.4 && t.length<said.length*1.6+40){
-          box.value=joinText(before, t); box.dispatchEvent(new Event('input'));
-        } else if(!t){
-          toast(d && d.error==='limit' ? 'Tidy-up limit reached for this month, so your words are as dictated.'
-            : 'Couldn’t tidy this one ('+((d && d.error)||'no reply')+'), so your words are as dictated.');
-        }
-      }catch(e){ toast('Couldn’t reach the tidy-up (check your signal), so your words are as dictated.'); }
-      finally{ pill.disabled=false; if(!listening) setBtn(false); }
-    }
     const stopAll=msg=>{
       const was=listening||rec; listening=false;
       if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; }
       if(current) pieces.push(...current());
-      if(was && pieces.length){ show(null,true); aiTidy(base, buildText(pieces, !base.trim()||/[.?!\n]\s*$/.test(base), true)); }
+      if(was && pieces.length) show(null,true);
       pieces=[]; current=null; setBtn(false); if(msg) toast(msg);
     };
     stopDictation=()=>{ listening=false; if(rec){ rec.onresult=rec.onend=rec.onerror=null; try{rec.abort()}catch{} rec=null; } pieces=[]; current=null; setBtn(false); base=''; };
