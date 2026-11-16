@@ -180,6 +180,11 @@ html.locked .wrap{visibility:hidden}
     </div>
 
     <div class="debrief">
+      <p>Did something happen on shift? Carla can help you write it up</p>
+      <button class="btn primary" id="reportBtn">📝 Write incident report</button>
+    </div>
+
+    <div class="debrief">
       <p>Need to offload? Talk to Carla your AI debrief agent</p>
       <button class="btn primary" id="debriefBtn">Talk to Carla</button>
     </div>
@@ -425,7 +430,7 @@ html.locked .wrap{visibility:hidden}
     const CLOUD_VOICE = false;
     const AI_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
     const NOTE_AI = 'Carla is an AI, not a person. Private and not saved: what you say is sent securely to Claude AI for a reply and is not kept in the app.';
-    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false, reportMode=false, reportWarned=false;
+    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false, reportMode=false, reportWarned=false, reportIntro=false;
     const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
     // The note's "Tidy up" button uses the same AI script.
     window.CNK_AI = AI_URL ? {url:AI_URL, device:()=>deviceId} : null;
@@ -525,11 +530,21 @@ html.locked .wrap{visibility:hidden}
       const step=()=>{ const [txt,big]=steps[i%4]; ph.textContent=txt+(rounds<3?'':''); c.classList.toggle('big',big); i++; if(i%4===0) rounds++; if(rounds>=3){ stopBreathing(); setTimeout(()=>{ ph.textContent='Well done.'; c.classList.remove('big'); say('How are you feeling now?'); },4000); } };
       requestAnimationFrame(step); breathing=setInterval(step,4000);
     }
-    async function open(){
-      stage=0; told=false; incidentTold=false; listenAt=0; history=[]; reportMode=false; $('chatReport').hidden=true; stopBreathing(); log().innerHTML=''; $('chatText').value='';
+    async function open(asReport){
+      asReport = asReport===true && !!AI_URL;
+      stage=0; told=false; incidentTold=false; listenAt=0; history=[]; reportMode=asReport; reportIntro=asReport; $('chatReport').hidden=true; stopBreathing(); log().innerHTML=''; $('chatText').value='';
       if(AI_URL) $('debriefNote').textContent=NOTE_AI;
       $('debrief').hidden=false;
       const voice = await Talk.start();
+      if(asReport){
+        const c = clients.find(x=>x.id===selected);
+        say('Hi, I’m Carla, your AI assistant. Let’s write an incident report together.\n\n'
+          + (c ? 'I’ll use today’s notes for '+esc(c.name)+' too, without their name. ' : 'Tip: pick the client on the Log screen first and I can use today’s notes too. ')
+          + 'Tell me what happened, in your own words. I’ll ask about anything missing, then give you a report to check.'
+          + (voice ? ' I’m listening. Tap Stop if you’d rather type.' : ''));
+        if(!voice) setTimeout(()=>$('chatText').focus(), 300);
+        return;
+      }
       say('Hi, I’m Carla, your AI debrief companion.\n\nThis is a private space to offload after a hard session. Nothing is saved, and there’s no need to use names. '
         + (voice ? 'Just tell me what happened. I’m listening. Tap Stop if you’d rather type.' : 'Tell me what happened, or tap Talk and just speak.'));
       if(!voice) setTimeout(()=>$('chatText').focus(), 300);
@@ -543,10 +558,18 @@ html.locked .wrap{visibility:hidden}
     function close(){ Talk.stop(); stopBreathing(); history=[]; log().innerHTML=''; $('chatText').value=''; $('debrief').hidden=true; }
     function userSays(v){
       add(v,'me');
+      // Started from the Log screen's incident report button: the first message also carries the date and today's notes.
+      if(AI_URL && reportIntro){
+        reportIntro=false; const ctx=noteContext(), now=new Date(), nm=ctx.client && ctx.client.name.trim();
+        askClaude('I need to write an incident report. Today is '+fmtDate.format(now)+', '+fmtTime.format(now)+'. What happened: '+(nm ? v.split(nm).join('the client') : v)
+          + (ctx.text ? '\n\n<case_notes>\n'+ctx.text+'\n</case_notes>' : ''));
+        return;
+      }
       if(AI_URL) askClaude(v); else reply(v);
     }
 
-    $('debriefBtn').addEventListener('click', open);
+    $('debriefBtn').addEventListener('click', ()=>open(false));
+    $('reportBtn').addEventListener('click', ()=>open(true));
     $('debriefDone').addEventListener('click', close);
     $('chatReport').addEventListener('click', startReport);
     $('chatHelp').addEventListener('click', ()=>say('You don’t have to handle this alone. These are free and confidential:\n'+LINES+'\n\nA GP can also set up a mental health plan for subsidised counselling.'));
