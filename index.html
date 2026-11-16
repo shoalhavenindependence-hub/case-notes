@@ -102,6 +102,10 @@ a.btn{text-decoration:none;display:inline-block;text-align:center}
 .msg a{color:inherit;font-weight:700}
 .msg.typing{opacity:.7;font-style:italic}
 .chat-tools{display:flex;gap:8px;flex-wrap:wrap}
+.btn.report-btn{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.msg.report{max-width:100%;width:100%;display:flex;flex-direction:column;gap:8px;white-space:normal;border:1.5px solid var(--accent)}
+.msg.report .label{color:var(--muted)}
+.msg.report textarea{min-height:320px;font-size:.95rem}
 .chat-input{display:flex;gap:8px;align-items:flex-end}
 .chat-input textarea{flex:1;resize:none;min-height:48px;max-height:140px}
 .chat-input .btn{flex:none}
@@ -261,6 +265,7 @@ html.locked .wrap{visibility:hidden}
     <div class="chat-tools">
       <button class="btn small" id="chatBreathe">Breathing exercise</button>
       <button class="btn small" id="chatHelp">Support lines</button>
+      <button class="btn small report-btn" id="chatReport" hidden>📝 Write incident report</button>
     </div>
     <p class="chat-status" id="chatStatus" aria-live="polite"></p>
     <form class="chat-input" id="chatForm">
@@ -420,7 +425,7 @@ html.locked .wrap{visibility:hidden}
     const CLOUD_VOICE = false;
     const AI_URL = 'https://script.google.com/macros/s/AKfycbwPSHKJf8ZYt2WWUzLKZ_OQOAK1qDTAj5k2uCR7PAlTIaX4XmFZ0XZA8JPIOt5b3GM0/exec';
     const NOTE_AI = 'Carla is an AI, not a person. Private and not saved: what you say is sent securely to Claude AI for a reply and is not kept in the app.';
-    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false;
+    let stage=0, told=false, incidentTold=false, listenAt=0, breathing=null, history=[], busy=false, reportMode=false, reportWarned=false;
     const deviceId = (()=>{ let d=ls.get('deviceId',null); if(!d){ d=(crypto.randomUUID ? crypto.randomUUID() : uidGen()+uidGen()); ls.set('deviceId',d); } return d; })();
     // The note's "Tidy up" button uses the same AI script.
     window.CNK_AI = AI_URL ? {url:AI_URL, device:()=>deviceId} : null;
@@ -430,11 +435,21 @@ html.locked .wrap{visibility:hidden}
       if(last && last.role==='user') last.content += '\n\n'+raw; else history.push({role:'user', content:raw});
       busy=true; const t=add('…', 'bot', 'typing');
       try{
-        const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({device:deviceId, messages:history, voice:CLOUD_VOICE && Talk.on})});
+        const res = await fetch(AI_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({device:deviceId, messages:history, voice:CLOUD_VOICE && Talk.on, mode:reportMode?'report':'chat'})});
         const r = await res.json();
         if(!r.text) throw new Error(r.error||'empty');
         history.push({role:'assistant', content:r.content});
-        t.classList.remove('typing'); t.innerHTML=linkify(r.text); log().scrollTop=log().scrollHeight; Talk.heard(r.text, CLOUD_VOICE ? r.audio : null);
+        if(reportMode && r.mode!=='report' && !reportWarned){ reportWarned=true; toast('Incident reports need the new version of the Carla script. Carla will still help, but may not lay it out as a report.'); }
+        // A finished incident report comes back between <report> tags: show it in its own card to check, copy, email or save.
+        const m = r.text.match(/<report>([\s\S]*?)(?:<\/report>|$)/);
+        const before = m ? r.text.slice(0, m.index).trim() : r.text, after = m ? r.text.slice(m.index+m[0].length).trim() : '';
+        t.classList.remove('typing');
+        if(before) t.innerHTML=linkify(before); else t.remove();
+        if(m){ reportCard(m[1].trim()); if(after) add(linkify(after), 'bot'); }
+        log().scrollTop=log().scrollHeight;
+        const spoken=[before, after].filter(Boolean).join(' ');
+        Talk.heard(spoken || 'Here’s your incident report to check.', CLOUD_VOICE ? r.audio : null);
+        if(!reportMode && /incident report/i.test(r.text)) $('chatReport').hidden=false;
       }catch(e){
         t.remove();
         const why = e && e.message==='limit' ? 'You’ve reached this month’s Debrief limit, so here’s a simpler reply. ' : 'I couldn’t reach the AI just now (check your signal), so here’s a simpler reply. ';
@@ -442,6 +457,48 @@ html.locked .wrap{visibility:hidden}
       }finally{ busy=false; }
     }
     const log = () => $('chatLog');
+    // The client picked on the Log screen, and their unsaved note and today's notes, to help Carla draft the report.
+    function noteContext(){
+      const c = clients.find(x=>x.id===selected); if(!c) return {client:null, text:''};
+      const today = dayKey(Date.now());
+      const parts = notes.filter(n=>n.clientId===c.id && dayKey(n.createdAt)===today).sort((a,b)=>a.createdAt-b.createdAt)
+        .map(n=>fmtTime.format(n.createdAt)+' '+fmtDate.format(n.createdAt)+': '+n.text);
+      const draft = $('noteText').value.trim(); if(draft) parts.push('Not saved yet: '+draft);
+      // Carla doesn't need names, so the client's name becomes "the client".
+      const strip = t => c.name.trim() ? t.split(c.name.trim()).join('the client') : t;
+      return {client:c, text: parts.length ? strip(parts.join('\n\n')) : ''};
+    }
+    function startReport(){
+      if(busy) return;
+      reportMode=true; $('chatReport').hidden=true;
+      const ctx = noteContext();
+      add('Please help me write an incident report for this.', 'me');
+      const now = new Date();
+      askClaude('Please help me write an incident report for this. Today is '+fmtDate.format(now)+', '+fmtTime.format(now)+'.'
+        + (ctx.text ? '\n\n<case_notes>\n'+ctx.text+'\n</case_notes>' : ''));
+    }
+    function reportCard(text){
+      const ctx = noteContext(), c = ctx.client;
+      const d = add('<div class="label">Incident report: check and edit</div><textarea aria-label="Incident report"></textarea>'
+        + '<div class="row"><button class="btn small" data-r="copy">Copy</button><button class="btn small" data-r="email">Email</button>'
+        + (c ? `<button class="btn small" data-r="save">Save to ${esc(c.name)}’s notes</button>` : '') + '</div>', 'bot', 'report');
+      const box = d.querySelector('textarea'); box.value = text;
+      d.addEventListener('click', async e=>{
+        const b = e.target.closest('button'); if(!b) return;
+        const v = box.value.trim(); if(!v) return;
+        if(b.dataset.r==='copy'){
+          try{ await navigator.clipboard.writeText(v); toast('Report copied'); }
+          catch(err){ box.focus(); box.select(); toast('Press and hold in the report to copy it'); }
+        }else if(b.dataset.r==='email'){
+          location.href='mailto:?subject='+encodeURIComponent('Incident report')+'&body='+encodeURIComponent(v);
+        }else if(b.dataset.r==='save' && c){
+          const n={id:uidGen(),clientId:c.id,clientName:c.name,text:v,createdAt:Date.now(),editedAt:null};
+          b.disabled=true;
+          try{ await store.putNote(n); notes=[n,...notes].sort((a,b)=>b.createdAt-a.createdAt); render(); b.textContent='Saved to '+c.name+'’s notes'; toast('Report saved to '+c.name+'’s notes'); }
+          catch(err){ b.disabled=false; toast('Not saved. Try again.'); }
+        }
+      });
+    }
     function add(text, who, cls){ const d=document.createElement('div'); d.className='msg '+who+(cls?' '+cls:''); if(who==='me') d.textContent=text; else d.innerHTML=text; log().appendChild(d); log().scrollTop=log().scrollHeight; return d; }
     function say(html, cls){ const t=add('…', 'bot', 'typing'); setTimeout(()=>{ t.classList.remove('typing'); t.innerHTML=html; if(cls) t.classList.add(cls); log().scrollTop=log().scrollHeight; Talk.heard(t.textContent); }, 650); }
     function feeling(t){ for(const [re,f] of FEELINGS) if(re.test(t)) return f; return null; }
@@ -469,7 +526,7 @@ html.locked .wrap{visibility:hidden}
       requestAnimationFrame(step); breathing=setInterval(step,4000);
     }
     async function open(){
-      stage=0; told=false; incidentTold=false; listenAt=0; history=[]; stopBreathing(); log().innerHTML=''; $('chatText').value='';
+      stage=0; told=false; incidentTold=false; listenAt=0; history=[]; reportMode=false; $('chatReport').hidden=true; stopBreathing(); log().innerHTML=''; $('chatText').value='';
       if(AI_URL) $('debriefNote').textContent=NOTE_AI;
       $('debrief').hidden=false;
       const voice = await Talk.start();
@@ -491,6 +548,7 @@ html.locked .wrap{visibility:hidden}
 
     $('debriefBtn').addEventListener('click', open);
     $('debriefDone').addEventListener('click', close);
+    $('chatReport').addEventListener('click', startReport);
     $('chatHelp').addEventListener('click', ()=>say('You don’t have to handle this alone. These are free and confidential:\n'+LINES+'\n\nA GP can also set up a mental health plan for subsidised counselling.'));
     $('chatBreathe').addEventListener('click', ()=>{ say('Let’s slow things down. Follow the circle: in for 4, hold for 4, out for 4, hold for 4. Three rounds.'); setTimeout(breathe, 900); });
     $('chatForm').addEventListener('submit', e=>{ e.preventDefault(); const v=$('chatText').value.trim(); if(!v) return; $('chatText').value=''; userSays(v); });
