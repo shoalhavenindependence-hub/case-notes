@@ -482,12 +482,21 @@ html.locked .wrap{visibility:hidden}
       askClaude('Please help me write an incident report for this. Today is '+fmtDate.format(now)+', '+fmtTime.format(now)+'.'
         + (ctx.text ? '\n\n<case_notes>\n'+ctx.text+'\n</case_notes>' : ''));
     }
+    // Carla never sees the client's name, so the app puts it back into the finished report here on the phone.
+    function withName(text, c){
+      const name = c ? c.name.trim() : '';
+      let t = name ? text.replace(/\b([Tt])he client\b/g, name) : text;
+      const line = 'Client: '+(name || '____');
+      const lines = t.split('\n');
+      if(/^\s*incident report\s*$/i.test(lines[0]||'')) lines.splice(1, 0, line); else lines.unshift(line);
+      return lines.join('\n');
+    }
     function reportCard(text){
       const ctx = noteContext(), c = ctx.client;
       const d = add('<div class="label">Incident report: check and edit</div><textarea aria-label="Incident report"></textarea>'
         + '<div class="row"><button class="btn small" data-r="copy">Copy</button><button class="btn small" data-r="email">Email</button>'
         + (c ? `<button class="btn small" data-r="save">Save to ${esc(c.name)}’s notes</button>` : '') + '</div>', 'bot', 'report');
-      const box = d.querySelector('textarea'); box.value = text;
+      const box = d.querySelector('textarea'); box.value = withName(text, c);
       d.addEventListener('click', async e=>{
         const b = e.target.closest('button'); if(!b) return;
         const v = box.value.trim(); if(!v) return;
