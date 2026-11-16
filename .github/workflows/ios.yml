@@ -71,6 +71,11 @@ jobs:
             DEVELOPMENT_TEAM="$TEAM_ID" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO archive | tail -40
           test "${PIPESTATUS[0]}" = 0
+          # Put the app's entitlements (iCloud backup) into the archive, so Apple's signing at export keeps them.
+          APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          find "$APP/Frameworks" -maxdepth 1 \( -name '*.framework' -o -name '*.dylib' \) -exec codesign --force --sign - {} \; 2>/dev/null || true
+          codesign --force --sign - --entitlements App/App.entitlements "$APP"
+          codesign -d --entitlements - "$APP"
           # Apple signs the app for the App Store at export (cloud signing), so no iPhone needs registering.
           cp ../ExportOptions/app-store.plist "$RUNNER_TEMP/export.plist"
           plutil -insert teamID -string "$TEAM_ID" "$RUNNER_TEMP/export.plist"

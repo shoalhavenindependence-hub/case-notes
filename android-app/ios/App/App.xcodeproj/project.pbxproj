@@ -19,6 +19,7 @@
 		C0DE00000000000000000001 /* AppLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000002 /* AppLockPlugin.swift */; };
 		C0DE00000000000000000003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000004 /* MainViewController.swift */; };
 		C0DE00000000000000000005 /* GoogleDrivePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000006 /* GoogleDrivePlugin.swift */; };
+		C0DE00000000000000000011 /* ICloudBackupPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000012 /* ICloudBackupPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +39,8 @@
 		C0DE00000000000000000002 /* AppLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockPlugin.swift; sourceTree = "<group>"; };
 		C0DE00000000000000000004 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		C0DE00000000000000000006 /* GoogleDrivePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDrivePlugin.swift; sourceTree = "<group>"; };
+		C0DE00000000000000000012 /* ICloudBackupPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudBackupPlugin.swift; sourceTree = "<group>"; };
+		C0DE00000000000000000013 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +88,8 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				C0DE00000000000000000006 /* GoogleDrivePlugin.swift */,
+				C0DE00000000000000000012 /* ICloudBackupPlugin.swift */,
+				C0DE00000000000000000013 /* App.entitlements */,
 				C0DE00000000000000000004 /* MainViewController.swift */,
 				C0DE00000000000000000002 /* AppLockPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -224,6 +229,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6852FE996820072D4E8 /* SceneDelegate.swift in Sources */,
 				C0DE00000000000000000005 /* GoogleDrivePlugin.swift in Sources */,
+				C0DE00000000000000000011 /* ICloudBackupPlugin.swift in Sources */,
 				C0DE00000000000000000003 /* MainViewController.swift in Sources */,
 				C0DE00000000000000000001 /* AppLockPlugin.swift in Sources */,
 			);
@@ -363,6 +369,7 @@
 			baseConfigurationReference = FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
@@ -383,6 +390,7 @@
 			baseConfigurationReference = AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;

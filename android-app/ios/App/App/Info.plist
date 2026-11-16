@@ -47,6 +47,18 @@
 	<string>Case Note Keeper turns what you say into written case notes.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Case Note Keeper can use Face ID to keep your clients' notes private.</string>
+	<key>NSUbiquitousContainers</key>
+	<dict>
+		<key>iCloud.com.shoalhavenindependence.casenotes</key>
+		<dict>
+			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
+			<true/>
+			<key>NSUbiquitousContainerName</key>
+			<string>Case Note Keeper</string>
+			<key>NSUbiquitousContainerSupportedFolderLevels</key>
+			<string>None</string>
+		</dict>
+	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>GIDClientID</key>

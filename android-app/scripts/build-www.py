@@ -262,6 +262,66 @@ sub("      if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, p
       if(NSR){ const r = await NSR.start({language:'en-AU', maxResults:1, partialResults:false, popup:false}); return (r && r.matches && r.matches[0]) || ''; }""")
 
 # --- iPhone: Face ID lock ---
+# iPhone: automatic iCloud backup (native ICloudBackup plugin). Panel only shows in the iPhone app.
+sub("""    <div class="pad" id="drivePanel">
+      <h2>Back up notes to Google Drive</h2>""", """    <div class="pad" id="icloudPanel" hidden style="margin-bottom:16px">
+      <h2>iCloud backup</h2>
+      <p class="hint">Your notes back up to your iCloud automatically, with no sign-in. If you get a new iPhone, sign in with the same Apple account and your notes come back when you open the app. There’s also a spreadsheet of all your notes in the Files app, in iCloud Drive › Case Note Keeper.</p>
+      <p class="hint" id="icloudStatus">Checking iCloud…</p>
+    </div>
+    <div class="pad" id="drivePanel">
+      <h2>Back up notes to Google Drive</h2>""")
+sub("  clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;\n",
+"""  clients=ls.get('local:clients',[]); notes=ls.get('local:notes',[]).sort((a,b)=>b.createdAt-a.createdAt); ready=true;
+
+  /* ---------- iCloud backup (iPhone app) ---------- */
+  // Every change to clients or notes is copied to the phone's own iCloud. On a new iPhone with no notes yet,
+  // the backup is brought back automatically.
+  (function(){
+    const C=window.Capacitor;
+    if(!(C && C.getPlatform && C.getPlatform()==='ios')) return;
+    const ICloud=(C.Plugins&&C.Plugins.ICloudBackup)||(C.registerPlugin&&C.registerPlugin('ICloudBackup'));
+    if(!ICloud) return;
+    $('icloudPanel').hidden=false;
+    const rawSet=ls.set;
+    let ready=false, timer=null;
+    const status=()=>{ const last=ls.get('icloudLast',0), err=ls.get('icloudErr','');
+      $('icloudStatus').textContent = err || (last ? `All notes backed up to iCloud. Last backup ${fmtTime.format(last)}, ${fmtDate.format(last)}.` : 'Your notes will back up to iCloud as soon as you save one.'); };
+    const cell=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    async function save(){
+      const cs=ls.get('local:clients',[]), ns=ls.get('local:notes',[]);
+      if(!cs.length && !ns.length) return;
+      const names=new Map(cs.map(c=>[c.id,c.name]));
+      const rows=[['Client','Date','Time','Case note','Last edited']].concat(ns.slice().sort((a,b)=>a.createdAt-b.createdAt).map(n=>[
+        names.get(n.clientId)||n.clientName||'', fmtDate.format(n.createdAt), fmtTime.format(n.createdAt), n.text,
+        n.editedAt ? fmtTime.format(n.editedAt)+' '+fmtDate.format(n.editedAt) : '']));
+      const csv='\\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\\r\\n');
+      try{ await ICloud.save({json:JSON.stringify({v:1,savedAt:Date.now(),clients:cs,notes:ns}), csv}); rawSet('icloudLast',Date.now()); rawSet('icloudErr',''); }
+      catch(e){ rawSet('icloudErr', (e&&e.message)||'Not backing up to iCloud right now.'); }
+      status();
+    }
+    const soon=()=>{ if(!ready) return; clearTimeout(timer); timer=setTimeout(save,1500); };
+    ls.set=(k,v)=>{ rawSet(k,v); if(k==='local:clients'||k==='local:notes') soon(); };
+    const restored=ls.get('icloudRestored',0);
+    if(restored){ rawSet('icloudRestored',0); setTimeout(()=>toast(`Welcome back. ${restored} ${restored===1?'note was':'notes were'} brought back from iCloud.`),600); }
+    status();
+    (async()=>{
+      try{
+        if(!clients.length && !notes.length){
+          $('icloudStatus').textContent='Looking for your notes in iCloud…';
+          const r=await ICloud.load();
+          const d=r && r.json ? JSON.parse(r.json) : null;
+          if(d && ((d.clients||[]).length || (d.notes||[]).length) && !ls.get('local:clients',[]).length && !ls.get('local:notes',[]).length){
+            rawSet('local:clients', d.clients||[]); rawSet('local:notes', d.notes||[]); rawSet('icloudRestored', (d.notes||[]).length||1);
+            location.reload(); return;
+          }
+        }
+      }catch(e){}
+      ready=true; status(); soon();
+    })();
+  })();
+""")
+
 # iPhone: play the Dictate beep natively (web audio is silenced by the silent switch and the microphone).
 sub("  function beep(up){\n    try{",
     "  function beep(up){\n    try{ const C=window.Capacitor; if(C && C.getPlatform && C.getPlatform()==='ios'){ const L=(C.Plugins&&C.Plugins.AppLock)||C.registerPlugin('AppLock'); L.beep({up:!!up}).catch(()=>{}); return; } }catch{}\n    try{")
