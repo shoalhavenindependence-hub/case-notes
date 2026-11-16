@@ -52,6 +52,19 @@ const SYSTEM = [
   '- No headings or bullet lists unless they ask. Write as you would speak; replies may be read aloud.'
 ].join('\n');
 
+// Extra instructions while Carla helps write an incident report (the app's "Write incident report" button).
+// Kept as a second block so Carla's main instructions above stay cached.
+const REPORT_SYSTEM = [
+  'INCIDENT REPORT MODE. The worker has tapped "Write incident report". Your job now is to help them write a clear, factual incident report from what they have already told you in this chat, plus any case notes the app has included in <case_notes> tags.',
+  'Do not make them repeat themselves. First check what you already know against this list: date and time of the incident; where it happened; who was involved and present (use roles such as "the client", "I", "a family member", never full names); what was happening just before; what happened, in order; any injuries, harm or damage; what they did straight away (first aid, de-escalation, calling 000, keeping others safe); who they told or reported it to, and when; how the client and the worker are now; and any follow-up needed.',
+  'If something important is missing, ask for it in a short, friendly question, one at a time (two small related details in one question is fine). Ask at most about four questions in total, and only for things that matter. If they do not know or would rather not say, write "Not known" and move on. If they ask for the report straight away, write it with what you have.',
+  'When you have enough, reply with one short sentence, then the full report between <report> and </report> tags, then one or two short sentences after the tags.',
+  'Inside the tags, write plain text (no markdown, no asterisks) using exactly these headings, each in capitals on its own line followed by the details: INCIDENT REPORT, Date and time of incident, Location, People involved, What happened before, What happened, Injuries or damage, Action taken, Who was notified, Current situation, Follow-up needed, Reported by. Under Reported by write "Name: ____  Signature: ____  Date: ____".',
+  'Write the report in the first person as the worker, in the past tense, in plain Australian English. Stick to facts they gave you: what was seen, heard and done. Use the client\'s or others\' exact words in quotes where they gave them. No opinions, guesses, diagnoses or blame, and never invent or fill in details. Leave out your own advice, and do not mention Carla or AI inside the report.',
+  'After the tags, remind them to check it is accurate and add the names and details only they know, and say who it may need to go to (for example the client\'s guardian or support coordinator, the platform they work through, or the NDIS Quality and Safeguards Commission, noting some reportable incidents must be notified within 24 hours, so they should check the Commission\'s guidance).',
+  'If they ask for changes, make them and give the whole updated report again between the tags. If they move back to talking about how they feel, go back to supporting them.'
+].join('\n');
+
 function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
@@ -74,11 +87,14 @@ function doPost(e) {
     if (!key) return out_({error: 'not_set_up'});
 
     const model = (PropertiesService.getScriptProperties().getProperty('CARLA_MODEL') || DEFAULT_MODEL).trim();
+    const report = req.mode === 'report';
+    const system = [{type: 'text', text: SYSTEM, cache_control: {type: 'ephemeral'}}];
+    if (report) system.push({type: 'text', text: REPORT_SYSTEM});
     const payload = {
       model: model,
-      max_tokens: 2000,
+      max_tokens: report ? 4000 : 2000,
       // Prompt caching: Carla's instructions and the chat so far are reused at a small fraction of the price.
-      system: [{type: 'text', text: SYSTEM, cache_control: {type: 'ephemeral'}}],
+      system: system,
       cache_control: {type: 'ephemeral'},
       output_config: {effort: 'low'},
       messages: messages
@@ -102,7 +118,9 @@ function doPost(e) {
     if (body.stop_reason === 'refusal') return out_({error: 'refusal'});
     const text = (body.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n\n').trim();
     // The app keeps the full assistant turn (including any thinking blocks) and sends it back unchanged next time.
-    return out_({text: text, content: body.content, audio: req.voice ? synth_(text) : null});
+    // Only the words outside the report are read aloud.
+    const spoken = text.replace(/<report>[\s\S]*?(<\/report>|$)/, ' ').trim();
+    return out_({text: text, content: body.content, mode: report ? 'report' : 'chat', audio: req.voice && spoken ? synth_(spoken) : null});
   } catch (err) {
     return out_({error: 'server'});
   }
