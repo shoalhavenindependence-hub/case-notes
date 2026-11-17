@@ -51,6 +51,13 @@ section{display:flex;flex-direction:column;gap:16px}
 .chip.add{border-style:dashed;color:var(--muted)}
 .chip .dot{display:inline-block;min-width:1.4em;margin-left:6px;padding:0 6px;border-radius:999px;font-size:.75rem;background:var(--accent-soft);color:var(--ink)}
 .chip[aria-pressed="true"] .dot{background:var(--accent-ink);color:var(--accent)}
+.picker{position:relative;margin-top:8px}
+.picker input[type=search]{width:100%;font:1rem/1.5 var(--body);color:var(--ink);background:var(--field);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px}
+.matches{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:6;max-height:300px;overflow-y:auto;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
+.matches button{--ink:var(--card-ink);display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;font:700 1rem var(--body);text-align:left;padding:12px;border:0;border-radius:8px;background:transparent;color:var(--ink);cursor:pointer}
+.matches button.on,.matches button:focus-visible{background:var(--accent-soft);outline:none}
+.matches .dot{min-width:1.4em;padding:0 6px;border-radius:999px;font-size:.75rem;text-align:center;background:var(--accent);color:var(--accent-ink)}
+.matches .none{--muted:var(--card-muted);padding:12px;color:var(--muted)}
 .pad{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .pad-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .stamp{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -144,6 +151,10 @@ html.locked .wrap{visibility:hidden}
   <section id="view-log">
     <div>
       <div class="label">Who is this note for?</div>
+      <div class="picker" id="clientPicker" hidden>
+        <input type="search" id="clientSearch" placeholder="🔍 Search clients by name" autocomplete="off" enterkeyhint="go" role="combobox" aria-expanded="false" aria-controls="clientMatches" aria-label="Search clients by name">
+        <div class="matches" id="clientMatches" role="listbox" hidden></div>
+      </div>
       <div class="chips" id="pickClients" style="margin-top:8px"></div>
       <div class="row" id="addInline" style="margin-top:8px" hidden>
         <input type="text" id="newClientInline" placeholder="Client name" autocomplete="off" style="flex:1 1 180px">
@@ -306,6 +317,7 @@ html.locked .wrap{visibility:hidden}
   let clients = [];      // {id,name,hidden}
   let notes = [];        // {id,clientId,clientName,text,createdAt,editedAt}
   let selected = ls.get('sel', null);
+  const PICKER_LIMIT = 7; // more active clients than this: Log screen shows a search box instead of buttons
   let customWhen = null; // ms or null => now
   let store = null;      // {saveClients, putNote, deleteNote}
   let ready = false;
@@ -615,7 +627,10 @@ html.locked .wrap{visibility:hidden}
     const todayBy = {};
     notes.forEach(n=>{ if(dayKey(n.createdAt)===today) todayBy[n.clientId]=(todayBy[n.clientId]||0)+1; });
     if (selected && !activeClients().some(c=>c.id===selected)) selected=null;
-    $('pickClients').innerHTML = activeClients().map(c=>
+    const many = activeClients().length > PICKER_LIMIT;
+    $('clientPicker').hidden = !many;
+    if(!many) closeMatches(); else if(!$('clientMatches').hidden) renderMatches();
+    $('pickClients').innerHTML = activeClients().filter(c=>!many || c.id===selected).map(c=>
       `<button class="chip" data-id="${esc(c.id)}" aria-pressed="${c.id===selected}">${esc(c.name)}${todayBy[c.id]?`<span class="dot" title="Notes today">${todayBy[c.id]}</span>`:''}</button>`
     ).join('') + `<button class="chip add" id="addChip">+ New client</button>`;
     const sel = clients.find(c=>c.id===selected);
@@ -674,6 +689,41 @@ html.locked .wrap{visibility:hidden}
     saveDraft(); selected=b.dataset.id; ls.set('sel',selected);
     $('noteText').value = ls.get('draft:'+selected,''); render(); $('noteText').focus();
   });
+  /* ---------- searchable client picker (more than PICKER_LIMIT clients) ---------- */
+  // With lots of clients, the Log screen shows a search box instead of one button per client.
+  let matchIdx=0;
+  const matchList = () => {
+    const q=$('clientSearch').value.trim().toLowerCase();
+    return activeClients().filter(c=>!q || c.name.toLowerCase().includes(q))
+      .sort((a,b)=>{ const as=a.name.toLowerCase().startsWith(q), bs=b.name.toLowerCase().startsWith(q); return as!==bs ? (as?-1:1) : a.name.localeCompare(b.name,undefined,{sensitivity:'base'}); });
+  };
+  function renderMatches(){
+    const today=dayKey(Date.now()), todayBy={};
+    notes.forEach(n=>{ if(dayKey(n.createdAt)===today) todayBy[n.clientId]=(todayBy[n.clientId]||0)+1; });
+    const list=matchList(); if(matchIdx>=list.length) matchIdx=0;
+    $('clientMatches').innerHTML = list.length ? list.map((c,i)=>
+      `<button type="button" role="option" data-id="${esc(c.id)}" class="${i===matchIdx?'on':''}" aria-selected="${c.id===selected}"><span>${esc(c.name)}</span>${todayBy[c.id]?`<span class="dot" title="Notes today">${todayBy[c.id]}</span>`:''}</button>`).join('')
+      : `<div class="none">No client called “${esc($('clientSearch').value.trim())}”. Tap <b>+ New client</b> below to add them.</div>`;
+    $('clientMatches').hidden=false; $('clientSearch').setAttribute('aria-expanded','true');
+  }
+  function closeMatches(){ $('clientMatches').hidden=true; $('clientSearch').setAttribute('aria-expanded','false'); }
+  function pickClient(id){
+    saveDraft(); selected=id; ls.set('sel',selected);
+    $('clientSearch').value=''; closeMatches(); $('clientSearch').blur();
+    $('noteText').value = ls.get('draft:'+selected,''); render(); $('noteText').focus();
+  }
+  $('clientSearch').addEventListener('focus',()=>{ matchIdx=0; renderMatches(); });
+  $('clientSearch').addEventListener('input',()=>{ matchIdx=0; renderMatches(); });
+  $('clientSearch').addEventListener('blur',()=>setTimeout(()=>{ if(document.activeElement!==$('clientSearch')) closeMatches(); },150));
+  $('clientSearch').addEventListener('keydown',e=>{
+    const list=matchList();
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); if(list.length){ matchIdx=(matchIdx+(e.key==='ArrowDown'?1:list.length-1))%list.length; renderMatches(); } }
+    else if(e.key==='Enter'){ e.preventDefault(); if(list[matchIdx]) pickClient(list[matchIdx].id); }
+    else if(e.key==='Escape'){ $('clientSearch').value=''; closeMatches(); }
+  });
+  $('clientMatches').addEventListener('mousedown',e=>e.preventDefault()); // keep the search box focused while tapping
+  $('clientMatches').addEventListener('click',e=>{ const b=e.target.closest('button[data-id]'); if(b) pickClient(b.dataset.id); });
+
   async function addClient(name){
     name=name.trim(); if(!name) return null;
     const c={id:uidGen(),name,hidden:false}; clients=[...clients,c];
