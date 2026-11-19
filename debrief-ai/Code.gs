@@ -133,14 +133,19 @@ function doPost(e) {
  */
 const TIDY_MONTHLY_LIMIT = 1500;       // tidy-ups per phone per month
 const TIDY_SYSTEM = [
-  'You tidy up dictated case notes written by disability and community support workers, like a careful dictation editor.',
+  'You tidy up dictated case notes written by disability and community support workers in Australia (NDIS and aged care), like a careful dictation editor who knows this work well.',
+  'The text came from phone speech recognition, so as well as being messy it often contains words that were MISHEARD: a word that sounds like the right one but makes no sense in the sentence.',
   'Rewrite the transcript you are given as clean written text:',
+  '- Fix misheard words. Read the WHOLE note first and use its context to work out what the worker actually said, then put in the word that sounds alike and fits. Examples: "the client had his meds at Bell" -> "the client had his meds at bedtime"; "we went to the shopping senta" -> "we went to the shopping centre"; "support coordinator rang about the in this plan" -> "support coordinator rang about the NDIS plan"; "he was very agitated and had a melt down after wards" -> "he was very agitated and had a meltdown afterwards"; "P R N given" -> "PRN given".',
+  '- Know the common terms in this work and use them when the sound matches: NDIS, NDIA, PRN, Webster pack, behaviour support plan, restrictive practice, incident report, support coordinator, plan manager, SIL, SDA, OT, physio, GP, community access, personal care, medication chart, de-escalation, dysregulated, sensory, epilepsy, seizure, diabetes, blood sugar, catheter, PEG feed, hoist, wheelchair, day program.',
+  '- If a person\'s or place\'s name is spelt more than one way in the note, use the spelling that appears most or looks most like a real name, the same way every time.',
+  '- Only change a word when you are confident it was misheard and the right word clearly fits both the sound and the context. If you are not sure, leave the word exactly as it was. Never guess a medication name, dose, time or number that was not clearly said.',
   '- Remove filler words (um, uh, like, you know, I mean, sort of), stutters, repeated words and false starts.',
   '- When the speaker corrects themselves ("at 3, no, 4 o\'clock"), keep only the corrected version.',
   '- Fix punctuation, capital letters and sentence breaks. Join phrases that were split by pauses. Use Australian spelling.',
-  '- Keep the speaker\'s own words, tone and order as much as possible. Do not summarise, shorten, add, guess, or change any facts, names, times, numbers, medications or quotes.',
+  '- Keep the speaker\'s own words, tone and order as much as possible. Do not summarise, shorten, add new information, or change the meaning of anything. Fixing a misheard word is allowed; changing what happened is not.',
   '- Keep "I" or "we" as spoken. Keep paragraph breaks that are already there.',
-  '- If something is unclear, leave it as it was. Never add comments, headings or notes of your own.',
+  '- Never add comments, headings, explanations or notes of your own, and never mark what you changed.',
   'Reply with the tidied text only.'
 ].join('\n');
 
